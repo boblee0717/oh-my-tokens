@@ -1,5 +1,6 @@
 import { getUsageReport, DEFAULT_HOST_NAME } from "./usage-client.js";
 import { fetchClaudeQuota } from "./claude-web.js";
+import { fetchDeepSeekUsage } from "./deepseek-usage.js";
 
 const PROVIDER_NAMES = {
   "claude-code": "Claude Code",
@@ -202,13 +203,20 @@ async function load() {
   });
   render();
 
-  // Claude account-level quota % comes from claude.ai (not local logs); merge it in.
-  // Skipped in sample/preview mode so we don't mix mock + live data.
+  // Web-sourced data (not from local logs / native host). Skipped in sample/preview mode
+  // so we don't mix mock + live data. Each fetch is independent and merges as it resolves.
   if (report._source !== "sample") {
     try {
-      const claudeQuota = await fetchClaudeQuota();
+      const claudeQuota = await fetchClaudeQuota(); // Claude account quota %
       if (claudeQuota.length) {
         report.records = [...report.records, ...claudeQuota];
+        render();
+      }
+    } catch {}
+    try {
+      const deepseekUsage = await fetchDeepSeekUsage(); // DeepSeek token usage (hidden tab)
+      if (deepseekUsage.length) {
+        report.records = [...report.records, ...deepseekUsage];
         render();
       }
     } catch {}

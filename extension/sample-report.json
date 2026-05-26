@@ -161,6 +161,24 @@
       "updatedAt": "2026-05-26T12:00:00.000Z",
       "confidence": "high",
       "warnings": ["balance is a point-in-time figure, not a usage total"]
+    },
+    {
+      "id": "deepseek:deepseek-v4-pro:7d:measured_tokens",
+      "provider": "deepseek",
+      "model": "deepseek-v4-pro",
+      "metricType": "measured_tokens",
+      "source": "platform.deepseek.com/api/v0/usage",
+      "window": "7d",
+      "inputTokens": 18000000,
+      "outputTokens": 12000000,
+      "cacheTokens": 11065434,
+      "requests": 310,
+      "costUSD": null,
+      "balance": null,
+      "currency": null,
+      "updatedAt": "2026-05-26T12:00:00.000Z",
+      "confidence": "high",
+      "warnings": []
     }
   ],
   "errors": []

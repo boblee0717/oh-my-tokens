@@ -35,7 +35,7 @@ A **Chrome [Native Messaging](https://developer.chrome.com/docs/extensions/devel
 |------|--------|-------------|
 | **Claude Code** | local JSONL `~/.claude/projects/**/*.jsonl` | per-message `usage` (input / output / cache tokens) → tokens + **estimated** cost by model |
 | **Codex** | local `~/.codex/sessions/` + `archived_sessions/` | session token usage **and real quota % (5h + weekly) from `rate_limits`** + reset + plan |
-| **DeepSeek** | DeepSeek API (`GET /user/balance`) | account balance; requires an API key |
+| **DeepSeek** | API (`GET /user/balance`) for balance; platform web (`/api/v0/usage/amount`) for token usage | balance (key) + per-model token usage via your logged-in platform.deepseek.com session |
 
 > **Quota %**: **Codex** exposes it via local `rate_limits`; **Claude** exposes it on the web
 > (`claude.ai/api/organizations/{org}/usage` — current session + weekly limits), which the
@@ -79,3 +79,5 @@ Log parsing happens entirely on your machine; Claude Code / Codex usage never le
 - [x] **M6** — hardening: escape popup innerHTML, multi-channel install
 - [x] **M7** — Codex quota % (5h + weekly rate-limit usage) + light-theme UI redesign
 - [x] **M8** — Claude account quota % from claude.ai web (logged-in session, no cookie files)
+- [x] **M9** — configurable DeepSeek key (extension Options / config file / env)
+- [x] **M11** — DeepSeek per-model token usage from platform.deepseek.com (hidden-tab fetch, in-page Bearer token)

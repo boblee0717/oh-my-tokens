@@ -11,6 +11,14 @@ session** (`fetch(..., { credentials: "include" })`) — it never reads or store
 logged in, shape changed) falls back to [] so Claude just shows tokens. This is Claude
 **account-level** plan usage, not Claude Code CLI specifically.
 
+`deepseek-usage.js` gets DeepSeek per-model token usage from `platform.deepseek.com`. That
+API needs an `Authorization: Bearer` web token (not cookies), so we open the platform in a
+**hidden tab** and `chrome.scripting.executeScript` an in-page fetch (it reads the token
+from `localStorage.userToken` and calls `/api/v0/usage/amount`), then close the tab. The
+token is used only in-page, never stored. `days[]` is aggregated into today/7d/30d
+(RESPONSE_TOKEN→output, PROMPT_CACHE_MISS→input, PROMPT_CACHE_HIT→cache, REQUEST→requests).
+Needs `scripting` + `tabs` + `host_permissions: https://platform.deepseek.com/*`.
+
 ## Load it (unpacked)
 
 1. `chrome://extensions` → enable **Developer mode**.

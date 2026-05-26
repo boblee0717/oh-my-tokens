@@ -3,8 +3,8 @@
   "name": "oh-my-tokens",
   "version": "0.0.1",
   "description": "See your Codex / Claude Code / DeepSeek usage in one place.",
-  "permissions": ["nativeMessaging", "storage"],
-  "host_permissions": ["https://claude.ai/*"],
+  "permissions": ["nativeMessaging", "storage", "scripting", "tabs"],
+  "host_permissions": ["https://claude.ai/*", "https://platform.deepseek.com/*"],
   "action": {
     "default_title": "oh-my-tokens",
     "default_popup": "popup.html",
