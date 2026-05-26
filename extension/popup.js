@@ -93,8 +93,6 @@ function balanceRowsHtml(records) {
 function renderQuota() {
   const section = document.getElementById("quota-section");
   const box = document.getElementById("quota");
-  // Quota % (Codex/Claude) and balance (DeepSeek) both live here — they're account-level,
-  // not per-window token usage.
   const items = (report?.records || []).filter(
     (r) => r.metricType === "quota_percent" || r.metricType === "balance",
   );
@@ -104,16 +102,23 @@ function renderQuota() {
   }
   section.classList.remove("hidden");
 
+  const hasProviderData = (p) => (report?.records || []).some((r) => r.provider === p);
+
   const html = PROVIDER_ORDER.map((p) => {
     const pctRecs = items.filter((q) => q.provider === p && q.metricType === "quota_percent");
     const balRecs = items.filter((q) => q.provider === p && q.metricType === "balance");
-    if (!pctRecs.length && !balRecs.length) return "";
+    if (!pctRecs.length && !balRecs.length && !hasProviderData(p)) return "";
     const all = [...pctRecs, ...balRecs];
     const plan = all.find((q) => q.planType)?.planType;
     const note = distinctWarnings(all)[0];
+    const quotaHtml = pctRecs.length
+      ? quotaRowsHtml(pctRecs)
+      : hasProviderData(p)
+        ? '<div class="quota-row"><span class="label-empty">quota data unavailable</span></div>'
+        : "";
     return `<div class="quota-group">
       <div class="quota-provider">${esc(PROVIDER_NAMES[p] || p)}${plan ? `<span class="plan">${esc(plan)}</span>` : ""}</div>
-      ${quotaRowsHtml(pctRecs)}
+      ${quotaHtml}
       ${balanceRowsHtml(balRecs)}
       ${note ? `<div class="quota-note">${esc(note)}</div>` : ""}
     </div>`;
