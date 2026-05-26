@@ -80,25 +80,40 @@ function quotaRowsHtml(records) {
     .join("");
 }
 
+function balanceRowsHtml(records) {
+  return records
+    .map(
+      (b) =>
+        `<div class="quota-row"><div class="top"><span class="label">balance</span><span class="pct balance">${esc(money(b.balance, b.currency))}</span></div></div>`,
+    )
+    .join("");
+}
+
 function renderQuota() {
   const section = document.getElementById("quota-section");
   const box = document.getElementById("quota");
-  const quota = (report?.records || []).filter((r) => r.metricType === "quota_percent");
-  if (!quota.length) {
+  // Quota % (Codex/Claude) and balance (DeepSeek) both live here — they're account-level,
+  // not per-window token usage.
+  const items = (report?.records || []).filter(
+    (r) => r.metricType === "quota_percent" || r.metricType === "balance",
+  );
+  if (!items.length) {
     section.classList.add("hidden");
     return;
   }
   section.classList.remove("hidden");
 
-  // One block per provider (Codex, Claude Code) so windows don't get mixed up.
   const html = PROVIDER_ORDER.map((p) => {
-    const recs = quota.filter((q) => q.provider === p);
-    if (!recs.length) return "";
-    const plan = recs.find((q) => q.planType)?.planType;
-    const note = distinctWarnings(recs)[0]; // e.g. "account-level plan usage…"
+    const pctRecs = items.filter((q) => q.provider === p && q.metricType === "quota_percent");
+    const balRecs = items.filter((q) => q.provider === p && q.metricType === "balance");
+    if (!pctRecs.length && !balRecs.length) return "";
+    const all = [...pctRecs, ...balRecs];
+    const plan = all.find((q) => q.planType)?.planType;
+    const note = distinctWarnings(all)[0];
     return `<div class="quota-group">
       <div class="quota-provider">${esc(PROVIDER_NAMES[p] || p)}${plan ? `<span class="plan">${esc(plan)}</span>` : ""}</div>
-      ${quotaRowsHtml(recs)}
+      ${quotaRowsHtml(pctRecs)}
+      ${balanceRowsHtml(balRecs)}
       ${note ? `<div class="quota-note">${esc(note)}</div>` : ""}
     </div>`;
   }).join("");
@@ -112,7 +127,6 @@ function distinctWarnings(records) {
 function renderProviderCard(provider, records) {
   const measured = records.filter((r) => r.metricType === "measured_tokens");
   const costs = records.filter((r) => r.metricType === "estimated_cost");
-  const balances = records.filter((r) => r.metricType === "balance");
 
   let rows = "";
   for (const m of measured) {
@@ -124,9 +138,6 @@ function renderProviderCard(provider, records) {
     ];
     if (cost) parts.push(metric("cost", esc(money(cost.costUSD, cost.currency)), "cost"));
     rows += `<div class="model-row"><div class="model-name">${esc(m.model)}</div><div class="metrics">${parts.join("")}</div></div>`;
-  }
-  for (const b of balances) {
-    rows += `<div class="model-row"><div class="metrics">${metric("balance", esc(money(b.balance, b.currency)), "balance")}</div></div>`;
   }
 
   const reqTotal = measured.reduce((s, r) => s + (r.requests || 0), 0);
@@ -150,15 +161,17 @@ function render() {
   banner.classList.toggle("hidden", report._source !== "sample");
   renderQuota();
 
-  // Token cards filtered to the selected window (quota/balance are shown elsewhere/always).
+  // Usage cards: token records for the selected window only. Quota % and balance
+  // live in the Quota section above, so a provider with only those (e.g. DeepSeek
+  // balance) gets no empty Usage card.
   const tokenRecords = report.records.filter(
-    (r) => r.window === currentWindow && r.metricType !== "quota_percent",
+    (r) =>
+      r.window === currentWindow &&
+      (r.metricType === "measured_tokens" || r.metricType === "estimated_cost"),
   );
-  const balances = report.records.filter((r) => r.metricType === "balance");
-  const visible = [...tokenRecords, ...balances.filter((b) => !tokenRecords.includes(b))];
 
   const html = PROVIDER_ORDER.map((p) => {
-    const recs = visible.filter((r) => r.provider === p);
+    const recs = tokenRecords.filter((r) => r.provider === p);
     return recs.length ? renderProviderCard(p, recs) : "";
   }).join("");
   cards.innerHTML = html || '<div class="empty">No usage in this window.</div>';

@@ -65,6 +65,7 @@ section { padding: 0 14px; }
 .quota-row .top { display: flex; justify-content: space-between; align-items: baseline; }
 .quota-row .label { font-weight: 500; }
 .quota-row .pct { font-variant-numeric: tabular-nums; font-weight: 600; }
+.quota-row .pct.balance { color: var(--accent); }
 .quota-row .reset { color: var(--faint); font-size: 11px; }
 .bar { height: 7px; background: #eef0f3; border-radius: 999px; margin-top: 5px; overflow: hidden; }
 .bar > span { display: block; height: 100%; border-radius: 999px; background: var(--ok); transition: width 0.3s; }
