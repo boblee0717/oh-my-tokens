@@ -1,9 +1,12 @@
+// Fix TZ so "today" (local-day) assertions are deterministic across machines.
+process.env.TZ = "UTC";
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { parseClaudeUsage } from "../parsers/claude.ts";
-import type { UsageRecord, TimeWindow } from "../../shared/schema.ts";
+import type { UsageRecord, TimeWindow, MetricType } from "../../shared/schema.ts";
 
 const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures");
 const NOW = new Date("2026-05-26T12:00:00.000Z");
@@ -12,69 +15,83 @@ function run() {
   return parseClaudeUsage({ baseDir: fixturesDir, now: NOW });
 }
 
-function pick(records: UsageRecord[], model: string, window: TimeWindow) {
-  return records.find((r) => r.model === model && r.window === window);
+function pick(records: UsageRecord[], model: string, window: TimeWindow, metric: MetricType) {
+  return records.find((r) => r.model === model && r.window === window && r.metricType === metric);
 }
 
 test("dedup: same (message.id, requestId) counted once, keeping the fuller line", async () => {
-  const sonnetToday = pick(await run(), "claude-sonnet-4-6", "today")!;
-  assert.ok(sonnetToday, "expected a sonnet/today record");
-  assert.equal(sonnetToday.requests, 1); // two log lines, one logical message
-  assert.equal(sonnetToday.inputTokens, 100);
-  assert.equal(sonnetToday.outputTokens, 50); // the fuller line's output, not 0
-  assert.equal(sonnetToday.cacheTokens, 1200); // 200 creation + 1000 read
+  const r = pick(await run(), "claude-sonnet-4-6", "today", "measured_tokens")!;
+  assert.ok(r, "expected a sonnet/today measured_tokens record");
+  assert.equal(r.requests, 1); // two log lines, one logical message
+  assert.equal(r.inputTokens, 100);
+  assert.equal(r.outputTokens, 50); // the fuller line's output, not 0
+  assert.equal(r.cacheTokens, 1200); // 200 creation + 1000 read
+  assert.equal(r.confidence, "high");
+  assert.equal(r.costUSD, null); // cost lives on a separate record
 });
 
-test("estimated cost for a known model (sonnet today)", async () => {
-  const r = pick(await run(), "claude-sonnet-4-6", "today")!;
+test("cost is a separate estimated_cost record, low confidence", async () => {
+  const r = pick(await run(), "claude-sonnet-4-6", "today", "estimated_cost")!;
+  assert.ok(r, "expected a sonnet/today estimated_cost record");
   // (100*3 + 50*15 + 200*3.75 + 1000*0.3) / 1e6 = 2100/1e6
-  assert.ok(r.costUSD !== null);
   assert.ok(Math.abs(r.costUSD! - 0.0021) < 1e-9);
   assert.equal(r.currency, "USD");
-  assert.equal(r.confidence, "high");
-  assert.equal(r.metricType, "measured_tokens");
+  assert.equal(r.confidence, "low");
+  assert.equal(r.inputTokens, 0); // tokens are not duplicated onto the cost record
+  assert.equal(r.warnings.length, 1);
 });
 
-test("unknown model: tokens measured, cost null + warning + medium confidence", async () => {
-  const r = pick(await run(), "some-unknown-model", "today")!;
+test("unknown model: measured tokens (high), no cost record, with warning", async () => {
+  const records = await run();
+  const r = pick(records, "some-unknown-model", "today", "measured_tokens")!;
   assert.equal(r.inputTokens, 5);
+  assert.equal(r.confidence, "high");
   assert.equal(r.costUSD, null);
-  assert.equal(r.currency, null);
-  assert.equal(r.confidence, "medium");
   assert.equal(r.warnings.length, 1);
+  assert.equal(pick(records, "some-unknown-model", "today", "estimated_cost"), undefined);
 });
 
 test("synthetic and zero-token entries are skipped", async () => {
   const records = await run();
-  assert.equal(pick(records, "<synthetic>", "today"), undefined);
+  assert.equal(records.some((r) => r.model === "<synthetic>"), false);
 });
 
-test("time windows are nested (today subset of 7d subset of 30d)", async () => {
+test("time windows use local day for today and are nested", async () => {
   const records = await run();
-  // opus only appears on 2026-05-24 → in 7d and 30d, not today
-  assert.equal(pick(records, "claude-opus-4-7", "today"), undefined);
-  assert.ok(pick(records, "claude-opus-4-7", "7d"));
-  assert.ok(pick(records, "claude-opus-4-7", "30d"));
+  // opus only on 2026-05-24 → in 7d and 30d, not today
+  assert.equal(pick(records, "claude-opus-4-7", "today", "measured_tokens"), undefined);
+  assert.ok(pick(records, "claude-opus-4-7", "7d", "measured_tokens"));
+  assert.ok(pick(records, "claude-opus-4-7", "30d", "measured_tokens"));
 
-  // sonnet 30d aggregates today's message (msg_A) + the 2026-05-10 one (msg_C),
-  // but excludes 2026-03-01 (msg_D, outside 30d).
-  const sonnet30 = pick(records, "claude-sonnet-4-6", "30d")!;
+  // sonnet 30d = today's msg_A + the 2026-05-10 msg_C; excludes 2026-03-01 msg_D
+  const sonnet30 = pick(records, "claude-sonnet-4-6", "30d", "measured_tokens")!;
   assert.equal(sonnet30.requests, 2);
-  assert.equal(sonnet30.inputTokens, 101); // 100 + 1
-  assert.equal(sonnet30.outputTokens, 52); // 50 + 2
+  assert.equal(sonnet30.inputTokens, 101);
+  assert.equal(sonnet30.outputTokens, 52);
 
-  // sonnet 7d excludes the 2026-05-10 message → same as today.
-  const sonnet7 = pick(records, "claude-sonnet-4-6", "7d")!;
+  // sonnet 7d excludes 2026-05-10 → same as today
+  const sonnet7 = pick(records, "claude-sonnet-4-6", "7d", "measured_tokens")!;
   assert.equal(sonnet7.requests, 1);
   assert.equal(sonnet7.inputTokens, 100);
 });
 
-test("id follows the documented rule", async () => {
-  const r = pick(await run(), "claude-opus-4-7", "7d")!;
-  assert.equal(r.id, "claude-code:claude-opus-4-7:7d:measured_tokens");
+test("source path is tilde-normalized (no username leak)", async () => {
+  const r = pick(await run(), "claude-sonnet-4-6", "today", "measured_tokens")!;
+  assert.equal(r.source.includes("/Users/"), false);
+});
+
+test("id follows the documented rule for both metric types", async () => {
+  const records = await run();
+  assert.equal(
+    pick(records, "claude-opus-4-7", "7d", "measured_tokens")!.id,
+    "claude-code:claude-opus-4-7:7d:measured_tokens",
+  );
+  assert.equal(
+    pick(records, "claude-opus-4-7", "7d", "estimated_cost")!.id,
+    "claude-code:claude-opus-4-7:7d:estimated_cost",
+  );
 });
 
 test("missing baseDir yields no records, not a throw", async () => {
-  const records = await parseClaudeUsage({ baseDir: "/no/such/dir/xyz", now: NOW });
-  assert.deepEqual(records, []);
+  assert.deepEqual(await parseClaudeUsage({ baseDir: "/no/such/dir/xyz", now: NOW }), []);
 });

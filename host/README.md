@@ -39,8 +39,11 @@ skip, time-window nesting, and the missing-dir case.
   across several log lines; counting each line double-counts tokens. We keep the
   fullest entry per key. This matches how `ccusage` reconciles.
 - Skips `<synthetic>` and zero-token entries.
-- Aggregates tokens by model across `today` / `7d` / `30d` (UTC day boundaries).
-- Estimates cost from a static per-family price table.
+- Aggregates tokens by model across `today` / `7d` / `30d` (**local** day boundary for `today`).
+- Emits **two records** per (model, window): a `measured_tokens` record (high confidence,
+  reconciles with `ccusage`) and, when the model is priced, a separate `estimated_cost`
+  record (low confidence) — so the UI never treats a token-derived dollar guess as billing.
+- `source` is tilde-normalized (`~/.claude/projects`) so the UI never leaks the username.
 
 ## Reconciliation vs `ccusage` (2026-05-26, real local logs)
 

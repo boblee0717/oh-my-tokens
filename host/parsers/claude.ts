@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import type { UsageRecord, TimeWindow } from "../../shared/schema.ts";
 import { estimateCostUSD } from "../pricing.ts";
+import { windowCutoff, tildePath } from "../util.ts";
 
 const SYNTHETIC_MODEL = "<synthetic>";
 
@@ -69,7 +70,7 @@ function extractEntries(text: string): Entry[] {
     if (model === SYNTHETIC_MODEL) continue;
     const messageId = msg.id ?? o.uuid ?? "";
     const requestId = o.requestId ?? "";
-    const ts = Date.parse(o.timestamp ?? "");
+    const ts = Date.parse(o.timestamp);
     if (Number.isNaN(ts)) continue;
     const inputTokens = num(u.input_tokens);
     const outputTokens = num(u.output_tokens);
@@ -101,26 +102,11 @@ function dedup(entries: Entry[]): Entry[] {
   return [...best.values()];
 }
 
-function startOfUTCDay(d: Date): number {
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-}
-
-function windowCutoff(window: TimeWindow, now: Date): number {
-  const ms = now.getTime();
-  switch (window) {
-    case "today":
-      return startOfUTCDay(now);
-    case "7d":
-      return ms - 7 * 24 * 60 * 60 * 1000;
-    case "30d":
-      return ms - 30 * 24 * 60 * 60 * 1000;
-  }
-}
-
 export async function parseClaudeUsage(opts: ParseOptions = {}): Promise<UsageRecord[]> {
   const baseDir = opts.baseDir ?? join(homedir(), ".claude", "projects");
   const now = opts.now ?? new Date();
   const windows = opts.windows ?? (["today", "7d", "30d"] as TimeWindow[]);
+  const source = tildePath(baseDir);
 
   const files = await findJsonl(baseDir);
   const all: Entry[] = [];
@@ -156,32 +142,55 @@ export async function parseClaudeUsage(opts: ParseOptions = {}): Promise<UsageRe
         cacheCreationTokens,
         cacheReadTokens,
       });
-      const warnings: string[] = [];
+
+      // Measured tokens: high confidence (reconciles with ccusage).
+      const tokenWarnings: string[] = [];
       if (costUSD === null) {
-        warnings.push(`no price table for model "${model}"; cost not estimated`);
-      } else {
-        warnings.push(
-          "costUSD is a provisional estimate from a static price table and is not authoritative billing",
-        );
+        tokenWarnings.push(`no price table for model "${model}"; cost not estimated`);
       }
       records.push({
         id: `claude-code:${model}:${window}:measured_tokens`,
         provider: "claude-code",
         model,
         metricType: "measured_tokens",
-        source: baseDir,
+        source,
         window,
         inputTokens,
         outputTokens,
         cacheTokens: cacheCreationTokens + cacheReadTokens,
         requests: group.length,
-        costUSD,
+        costUSD: null,
         balance: null,
-        currency: costUSD === null ? null : "USD",
+        currency: null,
         updatedAt,
-        confidence: costUSD === null ? "medium" : "high",
-        warnings,
+        confidence: "high",
+        warnings: tokenWarnings,
       });
+
+      // Estimated cost: separate, low-confidence record so the UI never treats
+      // a token-derived dollar guess as authoritative.
+      if (costUSD !== null) {
+        records.push({
+          id: `claude-code:${model}:${window}:estimated_cost`,
+          provider: "claude-code",
+          model,
+          metricType: "estimated_cost",
+          source,
+          window,
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheTokens: 0,
+          requests: group.length,
+          costUSD,
+          balance: null,
+          currency: "USD",
+          updatedAt,
+          confidence: "low",
+          warnings: [
+            "estimated from a static price table; not authoritative billing; reconcile via LiteLLM/ccusage",
+          ],
+        });
+      }
     }
   }
   return records;
