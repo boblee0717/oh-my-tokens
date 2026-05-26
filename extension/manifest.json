@@ -5,10 +5,19 @@
   "description": "See your Codex / Claude Code / DeepSeek usage in one place.",
   "permissions": ["nativeMessaging", "storage"],
   "host_permissions": ["https://claude.ai/*"],
+  "icons": {
+    "16": "icons/16.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
   "action": {
     "default_title": "oh-my-tokens",
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/16.png",
+      "48": "icons/48.png",
+      "128": "icons/128.png"
+    }
   },
-  "options_page": "options.html",
-  "icons": {}
+  "options_page": "options.html"
 }
