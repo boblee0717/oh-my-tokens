@@ -16,7 +16,8 @@
 
 body {
   width: 380px;
-  margin: 0;
+  max-width: 100%;
+  margin: 0 auto; /* center the panel when popup.html is opened as a full tab */
   font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);
   color: var(--fg);
@@ -25,7 +26,7 @@ body {
 header {
   display: flex;
   align-items: flex-start;
-  padding: 14px 16px 10px;
+  padding: 12px 14px 6px;
 }
 .greeting h1 { font-size: 16px; font-weight: 600; margin: 0; }
 .greeting .date { color: var(--faint); font-size: 11px; }
@@ -36,10 +37,10 @@ header {
 }
 .icon-btn:hover { background: #eceef1; color: var(--fg); }
 
-section { padding: 0 16px; }
+section { padding: 0 14px; }
 .section-head {
   display: flex; align-items: center; gap: 8px;
-  margin: 14px 0 8px; color: var(--muted);
+  margin: 9px 0 5px; color: var(--muted);
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
 }
 .section-head .line { flex: 1; height: 1px; background: var(--border); }
@@ -47,7 +48,7 @@ section { padding: 0 16px; }
 /* Quota hero */
 .quota-card {
   background: var(--card); border: 1px solid var(--border);
-  border-radius: 12px; box-shadow: var(--shadow); padding: 12px 14px;
+  border-radius: 12px; box-shadow: var(--shadow); padding: 10px 12px;
 }
 .quota-group + .quota-group { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
 .quota-provider {
@@ -80,10 +81,10 @@ section { padding: 0 16px; }
 .windows button.active { color: #fff; background: var(--accent); border-color: var(--accent); }
 
 /* Provider cards */
-main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 10px; }
+main { padding: 2px 14px 0; display: flex; flex-direction: column; gap: 8px; }
 .card {
   background: var(--card); border: 1px solid var(--border);
-  border-radius: 12px; box-shadow: var(--shadow); padding: 11px 13px;
+  border-radius: 12px; box-shadow: var(--shadow); padding: 9px 11px;
 }
 .card h2 {
   font-size: 13px; margin: 0 0 7px; display: flex;
@@ -103,14 +104,14 @@ main { padding: 4px 16px 0; display: flex; flex-direction: column; gap: 10px; }
 .warn-note { color: var(--faint); font-size: 11px; margin-top: 5px; cursor: help; }
 
 .banner {
-  margin: 0 16px; padding: 7px 10px; font-size: 11px;
+  margin: 0 14px; padding: 6px 9px; font-size: 11px;
   color: #8a6d1f; background: #fdf6e3; border: 1px solid #f2e3b3; border-radius: 8px;
 }
 .hidden { display: none; }
-.empty { color: var(--faint); text-align: center; padding: 16px 0; }
+.empty { color: var(--faint); text-align: center; padding: 14px 0; }
 
 footer {
   display: flex; justify-content: space-between;
-  padding: 12px 16px 14px; color: var(--faint); font-size: 11px;
+  padding: 9px 14px 11px; color: var(--faint); font-size: 11px;
 }
 footer a { color: var(--accent); text-decoration: none; }
