@@ -78,6 +78,18 @@ test("surfaces the latest rate_limits as quota_percent records (5h + weekly)", a
   assert.equal(weekly.usedPercent, 42);
 });
 
+test("credits plan (null primary/secondary) surfaces a credits balance record", async () => {
+  const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "codex-credits");
+  const records = await parseCodexUsage({ baseDir: dir, now: NOW });
+  const bal = records.find((r) => r.metricType === "balance" && r.provider === "codex");
+  assert.ok(bal, "expected a Codex credits balance record");
+  assert.equal(bal.balance, 0);
+  assert.equal(bal.currency, "credits");
+  assert.equal(bal.planType, "prolite");
+  // no quota_percent records since primary/secondary are null
+  assert.equal(records.some((r) => r.metricType === "quota_percent"), false);
+});
+
 test("falls back to filename-derived session id when session_meta is absent", async () => {
   const noMetaDir = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "codex-nometa");
   const records = await parseCodexUsage({ baseDir: noMetaDir, now: NOW });

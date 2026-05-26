@@ -162,6 +162,39 @@ function quotaRecord(
   };
 }
 
+// Build a balance record from the `credits` block (used by credits-based plans where
+// primary/secondary windows are null). Without this, such accounts show no Codex quota.
+function creditsRecord(
+  source: string,
+  credits: any,
+  planType: string | null,
+  updatedAt: string,
+): UsageRecord | null {
+  if (!credits || typeof credits !== "object") return null;
+  const unlimited = credits.unlimited === true;
+  const bal = Number(credits.balance);
+  if (!unlimited && !Number.isFinite(bal)) return null;
+  return {
+    id: `codex::credits:balance`,
+    provider: "codex",
+    model: null,
+    metricType: "balance",
+    source,
+    window: "today",
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheTokens: 0,
+    requests: 0,
+    costUSD: null,
+    balance: unlimited ? null : bal,
+    currency: "credits",
+    planType: planType ?? undefined,
+    updatedAt,
+    confidence: "high",
+    warnings: unlimited ? ["unlimited credits"] : [],
+  };
+}
+
 export async function parseCodexUsage(opts: ParseOptions = {}): Promise<UsageRecord[]> {
   const baseDir = opts.baseDir ?? join(homedir(), ".codex");
   const now = opts.now ?? new Date();
@@ -203,6 +236,10 @@ export async function parseCodexUsage(opts: ParseOptions = {}): Promise<UsageRec
       const rec = quotaRecord(source, win, plan, updatedAt);
       if (rec) records.push(rec);
     }
+    // Credits-based plans have null primary/secondary; surface the credits balance so
+    // Codex still appears (e.g. balance 0) instead of vanishing from the Quota section.
+    const creditsRec = creditsRecord(source, rl.credits, plan, updatedAt);
+    if (creditsRec) records.push(creditsRec);
   }
 
   for (const window of windows) {
