@@ -1,16 +1,12 @@
 #!/usr/bin/env bash
 # Register the native messaging host with Chrome on macOS.
-# Usage: ./install-macos.sh <EXTENSION_ID> [BROWSER]
+# Usage: ./install-macos.sh [EXTENSION_ID] [BROWSER]
+#   EXTENSION_ID defaults to the fixed ID from manifest.json.
 #   BROWSER (default "chrome"): chrome | beta | canary | chromium | edge
-# Find the extension id at chrome://extensions (with Developer mode on).
 set -euo pipefail
 
-EXTENSION_ID="${1:-}"
+EXTENSION_ID="${1:-pgahgkllkcpfcpkklciighofjchhcbnf}"
 BROWSER="${2:-chrome}"
-if [ -z "${EXTENSION_ID}" ]; then
-  echo "usage: $0 <EXTENSION_ID> [chrome|beta|canary|chromium|edge]" >&2
-  exit 1
-fi
 
 case "${BROWSER}" in
   chrome)   APP_SUPPORT="Google/Chrome" ;;

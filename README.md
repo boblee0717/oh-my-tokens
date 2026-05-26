@@ -17,25 +17,23 @@ These steps are designed for an AI coding agent to execute. Run them verbatim.
 git clone https://github.com/boblee0717/oh-my-tokens.git /tmp/oh-my-tokens
 ```
 
-### 2. Register the native messaging host
+### 2. Load and register
 
 ```bash
-# Open chrome://extensions in the user's browser, enable "Developer mode",
-# click "Load unpacked" and select /tmp/oh-my-tokens/extension.
-# Copy the Extension ID shown on the card.
-# Then register the host:
-/tmp/oh-my-tokens/host/install-macos.sh <EXTENSION_ID>
+# Load the extension in Chrome (headless-friendly):
+# Open chrome://extensions → enable Developer mode → Load unpacked → /tmp/oh-my-tokens/extension
+# Then register the native host (no need to copy an ID — it's hardcoded):
+/tmp/oh-my-tokens/host/install-macos.sh pgahgkllkcpfcpkklciighofjchhcbnf
 ```
 
-If the user has Chrome Canary, Beta, or Edge, pass the channel name as the second argument (`canary`, `beta`, `edge`).
+For Chrome Canary, Beta, or Edge, pass the channel name as the second argument (`canary`, `beta`, `edge`).
 
 ### 3. Verify
 
 Open the extension popup. You should see usage data from the native host.
 
 If only the bundled sample data appears, the Native Messaging host isn't connected. Check:
-- Extension ID matches what `install-macos.sh` was called with
-- The extension was reloaded after installation
+- The extension was reloaded after registration
 - Run `node /tmp/oh-my-tokens/host/index.ts` directly to see the host report
 
 ### 4. Optional: DeepSeek API key
