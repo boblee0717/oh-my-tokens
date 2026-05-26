@@ -1,9 +1,15 @@
 # extension
 
 The MV3 Chrome extension — a popup that renders the `UsageReport` from the local
-[host](../host). It holds **no API keys** and makes no network calls of its own; the only
-permissions are `nativeMessaging` (to talk to the host) and `storage` (to remember the
-selected window / host name).
+[host](../host), plus Claude's account quota fetched from claude.ai. It holds **no API keys**.
+Permissions: `nativeMessaging` (host), `storage` (settings), and `host_permissions:
+https://claude.ai/*` so it can read your Claude usage **using your existing logged-in
+session** (`fetch(..., { credentials: "include" })`) — it never reads or stores cookies.
+
+`claude-web.js` calls `/api/account` → `/api/organizations/{uuid}/usage` and maps the
+`five_hour` / `seven_day` / `seven_day_sonnet` windows to quota bars. Any failure (not
+logged in, shape changed) falls back to [] so Claude just shows tokens. This is Claude
+**account-level** plan usage, not Claude Code CLI specifically.
 
 ## Load it (unpacked)
 

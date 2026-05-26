@@ -49,10 +49,15 @@ section { padding: 0 16px; }
   background: var(--card); border: 1px solid var(--border);
   border-radius: 12px; box-shadow: var(--shadow); padding: 12px 14px;
 }
-.quota-card .plan {
-  display: inline-block; font-size: 10px; color: var(--accent);
+.quota-group + .quota-group { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+.quota-provider {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600; color: var(--fg); margin-bottom: 4px;
+}
+.plan {
+  font-size: 10px; font-weight: 500; color: var(--accent);
   background: rgba(47, 111, 235, 0.1); border-radius: 999px;
-  padding: 1px 8px; margin-bottom: 8px; text-transform: capitalize;
+  padding: 1px 8px; text-transform: capitalize;
 }
 .quota-row { margin: 9px 0; }
 .quota-row:first-of-type { margin-top: 2px; }

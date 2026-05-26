@@ -37,7 +37,11 @@ A **Chrome [Native Messaging](https://developer.chrome.com/docs/extensions/devel
 | **Codex** | local `~/.codex/sessions/` + `archived_sessions/` | session token usage **and real quota % (5h + weekly) from `rate_limits`** + reset + plan |
 | **DeepSeek** | DeepSeek API (`GET /user/balance`) | account balance; requires an API key |
 
-> **Quota %**: only **Codex** exposes a usage-percentage signal (its `rate_limits`), which the popup shows as progress bars. Claude Code subscription logs carry **no** quota field, so Claude shows tokens + an **estimated** cost only (never an official "plan remaining"). DeepSeek shows balance.
+> **Quota %**: **Codex** exposes it via local `rate_limits`; **Claude** exposes it on the web
+> (`claude.ai/api/organizations/{org}/usage` — current session + weekly limits), which the
+> extension fetches using your logged-in claude.ai session (no cookie files). Both render as
+> progress bars. Claude's figure is **account-level** plan usage, not Claude-Code-CLI-specific.
+> Claude Code local logs still give tokens + estimated cost. DeepSeek shows balance.
 
 ## Repo layout
 
@@ -74,3 +78,4 @@ Log parsing happens entirely on your machine; Claude Code / Codex usage never le
 - [x] **M5** — Native Messaging host wrapper + macOS install script (end-to-end verified locally)
 - [x] **M6** — hardening: escape popup innerHTML, multi-channel install
 - [x] **M7** — Codex quota % (5h + weekly rate-limit usage) + light-theme UI redesign
+- [x] **M8** — Claude account quota % from claude.ai web (logged-in session, no cookie files)

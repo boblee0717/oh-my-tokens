@@ -1,4 +1,5 @@
 import { getUsageReport, DEFAULT_HOST_NAME } from "./usage-client.js";
+import { fetchClaudeQuota } from "./claude-web.js";
 
 const PROVIDER_NAMES = {
   "claude-code": "Claude Code",
@@ -57,18 +58,8 @@ function metric(label, value, cls = "") {
   return `<span class="metric ${cls}"><span class="label">${label}</span> <span class="value">${value}</span></span>`;
 }
 
-function renderQuota() {
-  const section = document.getElementById("quota-section");
-  const box = document.getElementById("quota");
-  const quota = (report?.records || []).filter((r) => r.metricType === "quota_percent");
-  if (!quota.length) {
-    section.classList.add("hidden");
-    return;
-  }
-  section.classList.remove("hidden");
-
-  const plan = quota.find((q) => q.planType)?.planType;
-  const rows = quota
+function quotaRowsHtml(records) {
+  return records
     .map((q) => {
       const pct = Math.max(0, Math.min(100, Number(q.usedPercent) || 0));
       const cls = pct >= 80 ? "high" : pct >= 50 ? "warn" : "";
@@ -83,7 +74,29 @@ function renderQuota() {
       </div>`;
     })
     .join("");
-  box.innerHTML = `${plan ? `<span class="plan">${esc(plan)}</span>` : ""}${rows}`;
+}
+
+function renderQuota() {
+  const section = document.getElementById("quota-section");
+  const box = document.getElementById("quota");
+  const quota = (report?.records || []).filter((r) => r.metricType === "quota_percent");
+  if (!quota.length) {
+    section.classList.add("hidden");
+    return;
+  }
+  section.classList.remove("hidden");
+
+  // One block per provider (Codex, Claude Code) so windows don't get mixed up.
+  const html = PROVIDER_ORDER.map((p) => {
+    const recs = quota.filter((q) => q.provider === p);
+    if (!recs.length) return "";
+    const plan = recs.find((q) => q.planType)?.planType;
+    return `<div class="quota-group">
+      <div class="quota-provider">${esc(PROVIDER_NAMES[p] || p)}${plan ? `<span class="plan">${esc(plan)}</span>` : ""}</div>
+      ${quotaRowsHtml(recs)}
+    </div>`;
+  }).join("");
+  box.innerHTML = html;
 }
 
 function distinctWarnings(records) {
@@ -166,6 +179,18 @@ async function load() {
   render();
   report = await getUsageReport({ hostName: settings.hostName });
   render();
+
+  // Claude account-level quota % comes from claude.ai (not local logs); merge it in.
+  // Skipped in sample/preview mode so we don't mix mock + live data.
+  if (report._source !== "sample") {
+    try {
+      const claudeQuota = await fetchClaudeQuota();
+      if (claudeQuota.length) {
+        report.records = [...report.records, ...claudeQuota];
+        render();
+      }
+    } catch {}
+  }
 }
 
 document.getElementById("windows").addEventListener("click", (e) => {
