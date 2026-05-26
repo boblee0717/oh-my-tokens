@@ -61,3 +61,14 @@ test("id rule and missing-dir safety", async () => {
   assert.equal(r.id, "codex:gpt-5.4:7d:measured_tokens");
   assert.deepEqual(await parseCodexUsage({ baseDir: "/no/such/dir", now: NOW }), []);
 });
+
+test("falls back to filename-derived session id when session_meta is absent", async () => {
+  const noMetaDir = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "codex-nometa");
+  const records = await parseCodexUsage({ baseDir: noMetaDir, now: NOW });
+  const r = records.find((x) => x.model === "gpt-5.5" && x.window === "today")!;
+  assert.ok(r, "session without session_meta should still be parsed via filename id");
+  assert.equal(r.inputTokens, 500); // 700 − 200 cached
+  assert.equal(r.cacheTokens, 200);
+  assert.equal(r.outputTokens, 100); // 90 + 10 reasoning
+  assert.equal(r.requests, 1);
+});

@@ -4,8 +4,8 @@ The local Native Messaging host. It reads local usage logs and (later) the DeepS
 API, normalizes everything to [`shared/schema.ts`](../shared/schema.ts), and returns
 JSON to the extension. Runs on demand — no daemon, no open port.
 
-> **Scope so far:** Claude Code parser (M1) + Codex parser (M2). DeepSeek (M3),
-> extension UI (M4) and the Native-Messaging wrapper / packaging (M5) come later.
+> **Scope so far:** Claude Code (M1) + Codex (M2) parsers + DeepSeek balance (M3).
+> Extension UI (M4) and the Native-Messaging wrapper / packaging (M5) come later.
 
 ## Requirements
 
@@ -15,17 +15,17 @@ step and no dependencies.
 ## Run
 
 ```bash
-# Print a UsageReport for Claude Code (defaults to ~/.claude/projects)
+# Print a UsageReport for Claude Code + Codex + DeepSeek
 node host/index.ts
 
-# Point at a specific logs dir
-node host/index.ts /path/to/.claude/projects
+# DeepSeek balance requires an API key in the environment
+DEEPSEEK_API_KEY=sk-... node host/index.ts
 ```
 
 ## Test
 
 ```bash
-node --test host/test/claude.test.ts host/test/codex.test.ts
+node --test host/test/claude.test.ts host/test/codex.test.ts host/test/deepseek.test.ts
 ```
 
 Tests run against **desensitized synthetic fixtures** (`fixtures/`), not real logs, and
@@ -71,6 +71,15 @@ final cumulative total (Codex's own authoritative session figure); `ccusage` app
 deltas including duplicates, which over-counts. I believe the cumulative total is the more
 correct number, but the divergence is flagged here rather than claimed as a match — an
 item to confirm with the `ccusage` maintainers' intent.
+
+## What the DeepSeek client does
+
+- Calls `GET {baseUrl}/user/balance` with `Authorization: Bearer $DEEPSEEK_API_KEY`.
+- Emits one `balance` record per currency (e.g. CNY, USD); `model` is null.
+- No key configured → returns nothing (DeepSeek simply absent, not an error).
+- `fetch` is injectable so the client is unit-tested without a live key / network.
+- DeepSeek exposes no simple historical-usage API, so balance (point-in-time) is the
+  M3 deliverable; token-level DeepSeek usage would require a proxy and is out of scope.
 
 ## Reconciliation vs `ccusage` (2026-05-26, real local logs)
 
