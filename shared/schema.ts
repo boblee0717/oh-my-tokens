@@ -13,6 +13,11 @@ export type MetricType =
 export type TimeWindow = "today" | "7d" | "30d";
 
 export interface UsageRecord {
+  // Stable identity for UI diffing / caching.
+  // Rule: `${provider}:${model ?? ""}:${window}:${metricType}`
+  // e.g. "claude-code:claude-sonnet-4-6:7d:measured_tokens", "deepseek::today:balance".
+  id: string;
+
   provider: Provider;
   model: string | null; // null when not applicable (e.g. DeepSeek balance)
   metricType: MetricType;
