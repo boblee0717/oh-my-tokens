@@ -2,19 +2,59 @@
 
 A Chrome extension that shows your usage across multiple AI coding agents — **Codex**, **Claude Code**, and **DeepSeek** — in one place.
 
-> 🚧 **Status: early scaffolding / WIP.** The architecture below is the agreed plan, not a finished implementation.
+## Quickstart (for AI agents)
+
+These steps are designed for an AI coding agent to execute. Run them verbatim.
+
+### Prerequisites
+
+- macOS, Chrome, Node ≥ 22
+- Claude Code and/or Codex used on this machine (logs exist in `~/.claude/` / `~/.codex/`)
+
+### 1. Clone
+
+```bash
+git clone https://github.com/boblee0717/oh-my-tokens.git /tmp/oh-my-tokens
+```
+
+### 2. Register the native messaging host
+
+```bash
+# Open chrome://extensions in the user's browser, enable "Developer mode",
+# click "Load unpacked" and select /tmp/oh-my-tokens/extension.
+# Copy the Extension ID shown on the card.
+# Then register the host:
+/tmp/oh-my-tokens/host/install-macos.sh <EXTENSION_ID>
+```
+
+If the user has Chrome Canary, Beta, or Edge, pass the channel name as the second argument (`canary`, `beta`, `edge`).
+
+### 3. Verify
+
+Open the extension popup. You should see usage data from the native host.
+
+If only the bundled sample data appears, the Native Messaging host isn't connected. Check:
+- Extension ID matches what `install-macos.sh` was called with
+- The extension was reloaded after installation
+- Run `node /tmp/oh-my-tokens/host/index.ts` directly to see the host report
+
+### 4. Optional: DeepSeek API key
+
+For DeepSeek balance, open the extension Options page and paste your key. Or create `~/.oh-my-tokens/config.json`:
+
+```json
+{ "deepSeekApiKey": "sk-..." }
+```
+
+---
 
 ## Why
 
 These tools track usage separately (or not in a glanceable way). `oh-my-tokens` aggregates token counts, estimated cost, and remaining balance into a single popup.
 
-## The core constraint
-
-Claude Code and Codex are typically used via **subscription** (Claude Max, ChatGPT). **Subscription usage has no official API** — Anthropic's and OpenAI's usage/cost APIs only report *API-key / organization* usage. So Claude Code and Codex usage exists **only in local log files** on your machine. A Chrome extension is sandboxed and cannot read local files, so a small local helper is required for those two. DeepSeek is pay-as-you-go (API key), so its balance comes straight from its API.
-
 ## Architecture
 
-A **Chrome [Native Messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging) host** + the extension as a viewer. No long-running daemon and no open network port: Chrome launches the host on demand, it reads the logs (and calls the DeepSeek API), returns JSON, and exits.
+A **Chrome Native Messaging host** + the extension as a viewer. No long-running daemon, no open port: Chrome launches the host on demand, it reads logs (and calls the DeepSeek API), returns JSON, and exits.
 
 ```
 ┌─────────────┐   chrome.runtime.connectNative   ┌──────────────────┐
@@ -26,58 +66,31 @@ A **Chrome [Native Messaging](https://developer.chrome.com/docs/extensions/devel
                api.deepseek.com/user/balance  ◀─────────────┘
 ```
 
-- The DeepSeek API key lives **only in the native host's local config**, never in the extension's storage.
-- A `localhost` HTTP transport is kept only as an optional **dev/debug fallback**, not the default.
-
 ## Data sources
 
 | Tool | Source | What we get |
 |------|--------|-------------|
-| **Claude Code** | local JSONL `~/.claude/projects/**/*.jsonl` | per-message `usage` (input / output / cache tokens) → tokens + **estimated** cost by model |
-| **Codex** | local `~/.codex/sessions/` + `archived_sessions/` | session token usage **and real quota % (5h + weekly) from `rate_limits`** + reset + plan |
-| **DeepSeek** | API (`GET /user/balance`) for balance; platform web (`/api/v0/usage/amount`) for token usage | balance (key) + per-model token usage via your logged-in platform.deepseek.com session |
+| **Claude Code** | local JSONL `~/.claude/projects/**/*.jsonl` | per-message tokens + estimated cost by model |
+| **Codex** | local `~/.codex/sessions/` + `archived_sessions/` | session tokens + quota % (5h + weekly) + plan + reset |
+| **DeepSeek** | DeepSeek API (balance) + platform.deepseek.com (token usage) | balance + per-model per-day token usage |
 
-> **Quota %**: **Codex** exposes it via local `rate_limits`; **Claude** exposes it on the web
-> (`claude.ai/api/organizations/{org}/usage` — current session + weekly limits), which the
-> extension fetches using your logged-in claude.ai session (no cookie files). Both render as
-> progress bars. Claude's figure is **account-level** plan usage, not Claude-Code-CLI-specific.
-> Claude Code local logs still give tokens + estimated cost. DeepSeek shows balance.
+Both Codex and Claude Code **quota %** render as progress bars. DeepSeek shows balance.
 
 ## Repo layout
 
 ```
 oh-my-tokens/
-├─ extension/   # MV3 Chrome extension: popup UI, background service worker, options page
-├─ host/        # Native Messaging host: log parsers + DeepSeek client + manifest install
+├─ extension/   # MV3 Chrome extension (no build step, no deps)
+├─ host/        # Native Messaging host (log parsers + DeepSeek client)
 │  └─ parsers/  # claude / codex / deepseek
-├─ shared/      # normalized usage schema + shared types
-├─ README.md
-└─ .gitignore
+├─ shared/      # UsageRecord schema
+└─ README.md
 ```
-
-See [`shared/schema.ts`](shared/schema.ts) for the normalized usage record.
-
-## Platform
-
-**macOS first** (paths `~/.claude`, `~/.codex`; native-host manifest install for Chrome on macOS). Linux/Windows are deferred until after the MVP.
-
-## Configuration & secrets
-
-The DeepSeek API key and any credentials go in the native host's local config and are **never** committed. See `.gitignore`.
 
 ## Privacy
 
-Log parsing happens entirely on your machine; Claude Code / Codex usage never leaves it. The host returns only **aggregated** usage (no raw prompts/responses). The only outbound call is the DeepSeek balance lookup, to DeepSeek's API with your key.
+Log parsing happens entirely on your machine. The host returns only **aggregated** usage (no raw prompts/responses). The only outbound calls are to DeepSeek's API (with your key) and to claude.ai / platform.deepseek.com (via your logged-in browser session) for quota and token usage.
 
-## Roadmap
+## Status
 
-- [x] **M1** — native host parses Claude Code logs → usage JSON (reconciled against `ccusage`, ~99.9% on tokens)
-- [x] **M2** — Codex session parser (+ dedup across `sessions/` and `archived_sessions/`)
-- [x] **M3** — DeepSeek client (balance)
-- [x] **M4** — extension popup UI (per-provider cards, time-window toggle, refresh) + options
-- [x] **M5** — Native Messaging host wrapper + macOS install script (end-to-end verified locally)
-- [x] **M6** — hardening: escape popup innerHTML, multi-channel install
-- [x] **M7** — Codex quota % (5h + weekly rate-limit usage) + light-theme UI redesign
-- [x] **M8** — Claude account quota % from claude.ai web (logged-in session, no cookie files)
-- [x] **M9** — configurable DeepSeek key (extension Options / config file / env)
-- [x] **M11** — DeepSeek per-model token usage from platform.deepseek.com (hidden-tab fetch, in-page Bearer token)
+All MVP milestones are complete (M1–M11). Master is ready to use on macOS. Linux/Windows support is deferred.
