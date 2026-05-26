@@ -6,7 +6,16 @@ import { parseClaudeUsage } from "./parsers/claude.ts";
 import { parseCodexUsage } from "./parsers/codex.ts";
 import { parseDeepSeekUsage } from "./parsers/deepseek.ts";
 
-export async function buildUsageReport(hostVersion: string): Promise<UsageReport> {
+export interface BuildOptions {
+  // Optional DeepSeek key supplied by the extension (chrome.storage). When absent,
+  // parseDeepSeekUsage falls back to env / host config file.
+  deepseekApiKey?: string;
+}
+
+export async function buildUsageReport(
+  hostVersion: string,
+  opts: BuildOptions = {},
+): Promise<UsageReport> {
   const report: UsageReport = {
     generatedAt: new Date().toISOString(),
     hostVersion,
@@ -24,7 +33,7 @@ export async function buildUsageReport(hostVersion: string): Promise<UsageReport
     report.errors.push({ provider: "codex", message: String(e) });
   }
   try {
-    report.records.push(...(await parseDeepSeekUsage()));
+    report.records.push(...(await parseDeepSeekUsage({ apiKey: opts.deepseekApiKey })));
   } catch (e) {
     report.errors.push({ provider: "deepseek", message: String(e) });
   }

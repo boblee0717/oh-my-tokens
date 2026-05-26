@@ -47,10 +47,14 @@ let currentWindow = "7d";
 
 async function getSettings() {
   try {
-    const s = await chrome.storage.local.get(["hostName", "window"]);
-    return { hostName: s.hostName || DEFAULT_HOST_NAME, window: s.window || "7d" };
+    const s = await chrome.storage.local.get(["hostName", "window", "deepseekApiKey"]);
+    return {
+      hostName: s.hostName || DEFAULT_HOST_NAME,
+      window: s.window || "7d",
+      deepseekApiKey: s.deepseekApiKey || "",
+    };
   } catch {
-    return { hostName: DEFAULT_HOST_NAME, window: "7d" };
+    return { hostName: DEFAULT_HOST_NAME, window: "7d", deepseekApiKey: "" };
   }
 }
 
@@ -179,7 +183,10 @@ async function load() {
   }
   report = null;
   render();
-  report = await getUsageReport({ hostName: settings.hostName });
+  report = await getUsageReport({
+    hostName: settings.hostName,
+    deepseekApiKey: settings.deepseekApiKey,
+  });
   render();
 
   // Claude account-level quota % comes from claude.ai (not local logs); merge it in.

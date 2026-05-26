@@ -38,9 +38,23 @@ This lets the extension pull live data instead of the bundled sample.
 # 2. Register the host (default Chrome; pass a channel for others):
 ./host/install-macos.sh <EXTENSION_ID>           # stable Chrome
 # ./host/install-macos.sh <EXTENSION_ID> canary  # chrome | beta | canary | chromium | edge
-# 3. (optional) export DEEPSEEK_API_KEY in the environment Chrome inherits, for balance.
+# 3. (optional) configure a DeepSeek key for balance — see below.
 # 4. Reload the extension and open the popup.
 ```
+
+### DeepSeek API key
+
+The key stays on your machine (never synced). Resolution order:
+
+1. **Extension Options** — paste it in the popup's Options page. Stored in
+   `chrome.storage.local` and sent to the host over native messaging. Easiest; no file editing.
+2. **`~/.oh-my-tokens/config.json`** (or `~/.config/oh-my-tokens/config.json`, or `host/config.json`):
+   ```json
+   { "deepseekApiKey": "sk-..." }
+   ```
+   See `host/config.example.json`. Keeps the key out of the browser entirely.
+3. **`DEEPSEEK_API_KEY`** env var — handy for the CLI (`DEEPSEEK_API_KEY=sk-... node host/index.ts`);
+   note GUI Chrome on macOS does not inherit your shell env, so this rarely works for the popup.
 
 `install-macos.sh` writes `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.ohmytokens.host.json`
 pointing at `run-host.sh` (which resolves `node` and runs `native-host.ts`). The host speaks
@@ -94,7 +108,8 @@ item to confirm with the `ccusage` maintainers' intent.
 
 ## What the DeepSeek client does
 
-- Calls `GET {baseUrl}/user/balance` with `Authorization: Bearer $DEEPSEEK_API_KEY`.
+- Calls `GET {baseUrl}/user/balance` with `Authorization: Bearer <key>` (key from the
+  resolution order above: extension options → config file → env).
 - Emits one `balance` record per currency (e.g. CNY, USD); `model` is null.
 - No key configured → returns nothing (DeepSeek simply absent, not an error).
 - `fetch` is injectable so the client is unit-tested without a live key / network.

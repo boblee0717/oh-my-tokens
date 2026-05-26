@@ -23,6 +23,7 @@ web-ext-artifacts/
 .local/
 host/config.json
 host/config.*.json
+!host/config.example.json
 secrets/
 *.key
 *-key.json

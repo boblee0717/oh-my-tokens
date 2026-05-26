@@ -57,9 +57,11 @@ function writeMessage(obj: unknown): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  // Wait for the extension's request (content is ignored — we always return the full report).
-  await readMessage();
-  const report = await buildUsageReport(HOST_VERSION);
+  // The request may carry a DeepSeek key the user configured in the extension options.
+  const req = (await readMessage()) as { deepseekApiKey?: string } | null;
+  const deepseekApiKey =
+    req && typeof req.deepseekApiKey === "string" ? req.deepseekApiKey : undefined;
+  const report = await buildUsageReport(HOST_VERSION, { deepseekApiKey });
   await writeMessage(report);
   process.exit(0);
 }

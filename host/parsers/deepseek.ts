@@ -11,12 +11,14 @@
 // expose historical token usage via a simple API, so balance is the M3 deliverable.
 
 import type { UsageRecord } from "../../shared/schema.ts";
+import { getDeepSeekApiKey } from "../config.ts";
 
 export interface DeepSeekOptions {
-  apiKey?: string; // default process.env.DEEPSEEK_API_KEY
+  apiKey?: string; // explicit key; if omitted, resolved from env / config file
   now?: Date;
   baseUrl?: string; // default https://api.deepseek.com
   fetchImpl?: typeof fetch; // injectable for tests
+  resolveKey?: () => Promise<string | undefined>; // injectable for tests
 }
 
 interface BalanceInfo {
@@ -27,7 +29,7 @@ interface BalanceInfo {
 // Returns balance records (one per currency), or [] when no key is configured.
 // Throws on HTTP / network failure so the caller can report it.
 export async function parseDeepSeekUsage(opts: DeepSeekOptions = {}): Promise<UsageRecord[]> {
-  const apiKey = opts.apiKey ?? process.env.DEEPSEEK_API_KEY;
+  const apiKey = opts.apiKey ?? (await (opts.resolveKey ?? getDeepSeekApiKey)());
   if (!apiKey) return []; // not configured → simply absent
 
   const now = opts.now ?? new Date();

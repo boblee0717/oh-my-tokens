@@ -4,7 +4,7 @@
 export const DEFAULT_HOST_NAME = "com.ohmytokens.host";
 const NATIVE_TIMEOUT_MS = 4000;
 
-function viaNativeHost(hostName) {
+function viaNativeHost(hostName, deepseekApiKey) {
   return new Promise((resolve, reject) => {
     let settled = false;
     let port;
@@ -35,7 +35,7 @@ function viaNativeHost(hostName) {
       reject(new Error(chrome.runtime.lastError?.message || "native host disconnected"));
     });
 
-    port.postMessage({ type: "getUsage" });
+    port.postMessage({ type: "getUsage", deepseekApiKey: deepseekApiKey || undefined });
   });
 }
 
@@ -51,10 +51,11 @@ async function viaSample() {
 }
 
 // Returns a UsageReport. `_source` is "native" or "sample" so the UI can flag preview mode.
-export async function getUsageReport({ hostName = DEFAULT_HOST_NAME } = {}) {
+// `deepseekApiKey` (from extension options) is forwarded to the host for the balance lookup.
+export async function getUsageReport({ hostName = DEFAULT_HOST_NAME, deepseekApiKey } = {}) {
   if (typeof chrome !== "undefined" && chrome.runtime?.connectNative) {
     try {
-      const report = await viaNativeHost(hostName);
+      const report = await viaNativeHost(hostName, deepseekApiKey);
       report._source = "native";
       return report;
     } catch {

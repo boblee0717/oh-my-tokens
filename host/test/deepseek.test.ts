@@ -15,8 +15,19 @@ function stubFetch(status: number, body: unknown): typeof fetch {
 }
 
 test("no API key → no records (provider simply absent)", async () => {
-  const records = await parseDeepSeekUsage({ apiKey: undefined, now: NOW });
+  // inject an empty resolver so the test doesn't depend on env / config files
+  const records = await parseDeepSeekUsage({ now: NOW, resolveKey: async () => undefined });
   assert.deepEqual(records, []);
+});
+
+test("resolveKey supplies the key when apiKey is not passed", async () => {
+  const records = await parseDeepSeekUsage({
+    now: NOW,
+    resolveKey: async () => "from-config",
+    fetchImpl: stubFetch(200, { is_available: true, balance_infos: [{ currency: "CNY", total_balance: "9.00" }] }),
+  });
+  assert.equal(records.length, 1);
+  assert.equal(records[0].balance, 9);
 });
 
 test("parses a single-currency balance", async () => {

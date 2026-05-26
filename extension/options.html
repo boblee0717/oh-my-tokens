@@ -15,9 +15,13 @@
   </head>
   <body>
     <h1>oh-my-tokens — options</h1>
+
+    <label for="deepseekKey">DeepSeek API key</label>
+    <input id="deepseekKey" type="password" placeholder="sk-... (stored locally in this browser)" />
     <p class="hint">
-      The DeepSeek API key is configured in the native host's local config, not here —
-      it never enters the browser.
+      Stored in this browser's local storage (not synced) and sent to the local host to read
+      your balance. Prefer it out of the browser entirely? Leave blank and put it in
+      <code>~/.oh-my-tokens/config.json</code> instead.
     </p>
 
     <label for="hostName">Native messaging host name</label>
