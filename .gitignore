@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build output
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Extension packaging
+*.zip
+*.crx
+*.pem
+web-ext-artifacts/
+
+# Secrets & local config (NEVER commit API keys / credentials)
+.env
+.env.*
+!.env.example
+*.local
+.local/
+host/config.json
+host/config.*.json
+secrets/
+*.key
+*-key.json
+auth.json
+
+# Local data / fixtures / scratch
+host/data/
+fixtures/private/
+tmp/
+*.sqlite
+*.sqlite-*
+
+# Logs & caches
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.cache/
+coverage/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+Thumbs.db
