@@ -5,23 +5,28 @@ A Chrome extension that shows your usage across multiple AI coding agents — **
 ## Install this (with a coding agent)
 
 Send this repo to your coding agent (Claude Code, Codex, …) and say **"install this"**.
-It takes ~1 minute. The agent runs:
+It takes ~1 minute.
 
 ```bash
 git clone https://github.com/boblee0717/oh-my-tokens.git /tmp/oh-my-tokens
-/tmp/oh-my-tokens/install.sh          # registers the native host (fixed Extension ID)
-# add --deepseek-key sk-... to also set the DeepSeek key,
-# or --launch to auto-load the extension via Chrome --load-extension
+/tmp/oh-my-tokens/install.sh        # registers the native host (fixed Extension ID)
+#   --deepseek-key sk-...   also set the DeepSeek key (→ ~/.oh-my-tokens/config.json)
+#   --browser canary|beta|edge
 ```
 
-then loads the extension once: **chrome://extensions → Developer mode → Load unpacked →
-`/tmp/oh-my-tokens/extension`** (Extension ID is fixed: `obmkhlamcmbmacadoolbfaagmojdobah`).
-Open the toolbar icon — done.
+**Fully automatic (Chrome not running):** quit Chrome, then `./install.sh --launch` — it
+registers the host *and* auto-loads the extension (verified). No manual step.
 
-> Why one manual click: this extension reads your local `~/.claude` / `~/.codex` logs via a
-> Native Messaging host (a sandboxed extension can't read local files), and Chrome won't
-> load an unpacked extension purely from the CLI. `install.sh` automates everything else;
-> `--launch` can even auto-load it (a full Chrome restart may be required).
+**Chrome already open:** macOS ignores the load flag, so load the extension once:
+**chrome://extensions → Developer mode → Load unpacked → `/tmp/oh-my-tokens/extension`**
+(or quit Chrome and use `--launch`). Then click the toolbar icon.
+
+The Extension ID is fixed: `obmkhlamcmbmacadoolbfaagmojdobah`.
+
+> Why the host (and why it isn't pure-zero-click): this extension reads your local
+> `~/.claude` / `~/.codex` logs via a Native Messaging host (a sandboxed extension can't read
+> local files). `install.sh` automates everything scriptable; only loading an unpacked
+> extension into an *already-running* Chrome needs a click — Chrome's own limitation.
 
 ### Prerequisites
 
