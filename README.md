@@ -70,5 +70,5 @@ Log parsing happens entirely on your machine; Claude Code / Codex usage never le
 - [x] **M1** — native host parses Claude Code logs → usage JSON (reconciled against `ccusage`, ~99.9% on tokens)
 - [x] **M2** — Codex session parser (+ dedup across `sessions/` and `archived_sessions/`)
 - [x] **M3** — DeepSeek client (balance)
-- [ ] **M4** — extension popup UI (per-provider cards, time-window toggle, refresh) + options
-- [ ] **M5** — packaging + native-host manifest install docs
+- [x] **M4** — extension popup UI (per-provider cards, time-window toggle, refresh) + options
+- [x] **M5** — Native Messaging host wrapper + macOS install script (end-to-end verified locally)

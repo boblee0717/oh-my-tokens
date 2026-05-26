@@ -4,8 +4,8 @@ The local Native Messaging host. It reads local usage logs and (later) the DeepS
 API, normalizes everything to [`shared/schema.ts`](../shared/schema.ts), and returns
 JSON to the extension. Runs on demand — no daemon, no open port.
 
-> **Scope so far:** Claude Code (M1) + Codex (M2) parsers + DeepSeek balance (M3).
-> Extension UI (M4) and the Native-Messaging wrapper / packaging (M5) come later.
+> **Scope:** Claude Code (M1) + Codex (M2) parsers, DeepSeek balance (M3), and the
+> Native Messaging host wrapper + install (M5). The popup UI lives in [`../extension`](../extension).
 
 ## Requirements
 
@@ -27,6 +27,24 @@ DEEPSEEK_API_KEY=sk-... node host/index.ts
 ```bash
 node --test host/test/claude.test.ts host/test/codex.test.ts host/test/deepseek.test.ts
 ```
+
+## Install as a Chrome Native Messaging host (macOS)
+
+This lets the extension pull live data instead of the bundled sample.
+
+```bash
+# 1. Load the extension unpacked (chrome://extensions → Load unpacked → ../extension)
+#    and copy its Extension ID.
+# 2. Register the host:
+./host/install-macos.sh <EXTENSION_ID>
+# 3. (optional) export DEEPSEEK_API_KEY in the environment Chrome inherits, for balance.
+# 4. Reload the extension and open the popup.
+```
+
+`install-macos.sh` writes `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.ohmytokens.host.json`
+pointing at `run-host.sh` (which resolves `node` and runs `native-host.ts`). The host speaks
+Chrome's length-prefixed stdio protocol: it reads one request and replies with the
+`UsageReport`. Verified locally end-to-end with a framed request/response.
 
 Tests run against **desensitized synthetic fixtures** (`fixtures/`), not real logs, and
 cover dedup, cost estimation, unknown models, the synthetic/zero-token skip, time-window
