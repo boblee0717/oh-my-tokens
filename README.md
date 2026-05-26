@@ -23,7 +23,7 @@ git clone https://github.com/boblee0717/oh-my-tokens.git /tmp/oh-my-tokens
 # Load the extension in Chrome (headless-friendly):
 # Open chrome://extensions → enable Developer mode → Load unpacked → /tmp/oh-my-tokens/extension
 # Then register the native host (no need to copy an ID — it's hardcoded):
-/tmp/oh-my-tokens/host/install-macos.sh pgahgkllkcpfcpkklciighofjchhcbnf
+/tmp/oh-my-tokens/host/install-macos.sh obmkhlamcmbmacadoolbfaagmojdobah
 ```
 
 For Chrome Canary, Beta, or Edge, pass the channel name as the second argument (`canary`, `beta`, `edge`).

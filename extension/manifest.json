@@ -3,9 +3,17 @@
   "name": "oh-my-tokens",
   "version": "0.0.1",
   "description": "See your Codex / Claude Code / DeepSeek usage in one place.",
-  "key": "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDV6+GFHA20tIXQJzPRxJNGl1UmneWIZn408wN8JqhhSub40NXxkz4TnL5m7JbO2XQLdxyAvc2SgZC8A06oPcLJPsnEF0eed/VOf4DGmZKI+ktDtc86aVdJrk0cFlwadfN2PrcEoItSgPMMj39l7KdkMaOTaY98JK0Lw+YdBIvbfYX2Z2CbRGEQ0FdftkwZzauaWgeKItnB7PQmM30jCmFw+Phs0+G6mFMvpzp4mSoM1iHklqRZ8MM0Tq1i590S8vC+M7Amy7zmGfWLmayu/u+Pz8CpQRBrpWtRpHA94cJLztzFhozcnxkN4F/JtTcMXLvlzA/Z+LNgBo02GMO0FaZrAgMBAAECggEAFxSnNXRsaiXcFjRUm/popYIods0secYNMetSYe/N1Ql+2DO4EaOAXB9aT8KRFupRYfdNBPr1liwSkKaOswpO3OXAYT7dxFRPDFQnccYaEFtpCXoxTK0W9OUwfqpO76/wP77OglpMDe/JyX4mEbox6VaNvpbyG0Pdw9o0Fsdpy5mR/NOrp9BYS662HrHtiXgO45qrx2dRBvQDpg7dTHKp7s0P8fL/kORlq3LGujtZMdk01HhpTv+iz/X2V/hdtBVBIq52reYvXDfeFauY4UfDEuIKV6mLBpQPYWpAQJLj3PaRDSE47ghLexcXt6kPQydqVSWX9hYjNsfkvEJ0yTIQ+QKBgQDtN2RPIN4NjFrW9yaDEidTqh9laofInnYF8YKLcSMkUtj6lkDtopLtb2ixzQVQAIUctlJqt+X2LGx0lwxvpSk4OL7yv/SGpVI/jYt1B5Q+OUevfMw9o8fvkYC0VRIwCHrgkPGKuLSMh/P7urRkTjBA8avqOsvHtFfJdCSwEb5yVwKBgQDm3EcBkSLNKZ9TGi2ExUQSgsy0E/sQnzWGHbgZgh11eIbt6Gy9SNylurmfMF8yBGjRa5+4n112Q45vLXAhRm998fl81iMosrTfriDOcu8BnZij9NCKORvdYEi/LJR4Yd5t+FQOS7JOIRwv+D0kaW5tP4FjN3unZHcQXDZv963oDQKBgQCvm4YCng5EcVb+NFCqT1IVuacsaMTEW6p7k+JUYBjn1v0R5RGD2gpzAzq6BVCdfQUN0FsK7cCrkQ9o8DkgnV/6YufYxQm8c76DlcFbjZTMy5Kp8vUv3IMycsCYvzGLpXtxq1tkmn/uWObhv8GzT76hFUdzSrt4x6UFWZmfTkNyWQKBgDP51ha5OW+ddlx8YVEqJJhSUIoekYD9h0xptoAvtjgzaZV4pbq8A8lgT9hSSKx3J642n+AuKRmuPgwz27HyLLnbV8NOZt4L1gMiLgqs/7iKZcpMHQNxth9SRS6dd9PenPh/V1Vcn4lNlQ4LwqBHCHCaQqQ24qUeTlwllrAAwGulAoGBAOXBIthhhlioMZLOfb7UpMBELvJcSVrRy1QIDSJxfR7290yvOfi1G+tJgsnD8fNtsR2IMdf3c7ZGeoYHLVegXs7RedbTCdEDQs+dixcLoYP8ld5CM9Dky0vAjFG/6uwwNLjcb7gyb46jwISkABvuxwy1rZXjRVbHGrbqp9+ECH1p",
-  "permissions": ["nativeMessaging", "storage", "scripting", "tabs"],
-  "host_permissions": ["https://claude.ai/*", "https://platform.deepseek.com/*"],
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAs4G7r/FGh1M117qDJnoJW6F2y9WovevyxsOb8F5zBQoD4c8zXAqz/77j2hqluA6eA4fLTU67CO4tBQgTVGu3dzKEqroWo1XgJLPC4GSeYW9YcDd9W5dFmcTluwyS+B0d8iaFbhDW7cbh3csh1FfEL+IJtO07q7olCo2qNntWpiURhrfEq4p66eAQOcIbwyzVJtd3LDGnBCwUfrTPpbLKPFKk01x73N4d56IeQEVzcBFIlHL5T5RlXrfguy+nNKGnXj5ueg8GRb1KaQtnORmRZuR18QgnwU9iNe4iDCcWykIfh1MuUOTMbTjN3O3tOV1PtguftRZpVNMh8AfpQH8bRwIDAQAB",
+  "permissions": [
+    "nativeMessaging",
+    "storage",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://claude.ai/*",
+    "https://platform.deepseek.com/*"
+  ],
   "action": {
     "default_title": "oh-my-tokens",
     "default_popup": "popup.html",

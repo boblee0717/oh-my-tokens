@@ -5,7 +5,7 @@
 #   BROWSER (default "chrome"): chrome | beta | canary | chromium | edge
 set -euo pipefail
 
-EXTENSION_ID="${1:-pgahgkllkcpfcpkklciighofjchhcbnf}"
+EXTENSION_ID="${1:-obmkhlamcmbmacadoolbfaagmojdobah}"
 BROWSER="${2:-chrome}"
 
 case "${BROWSER}" in
