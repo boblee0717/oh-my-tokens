@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="popup.css" />
+    <title>oh-my-tokens</title>
+  </head>
+  <body>
+    <header>
+      <h1>oh-my-tokens</h1>
+      <div class="windows" id="windows" role="tablist">
+        <button data-window="today" type="button">Today</button>
+        <button data-window="7d" class="active" type="button">7d</button>
+        <button data-window="30d" type="button">30d</button>
+      </div>
+      <button id="refresh" class="icon-btn" title="Refresh" type="button">↻</button>
+    </header>
+
+    <div id="preview-banner" class="banner hidden">
+      Preview data — the local host isn't connected yet. See the README to install it.
+    </div>
+
+    <main id="cards" aria-live="polite"></main>
+
+    <footer>
+      <span id="status"></span>
+      <a id="open-options" href="#">Options</a>
+    </footer>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

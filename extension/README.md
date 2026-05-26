@@ -1,0 +1,34 @@
+# extension
+
+The MV3 Chrome extension — a popup that renders the `UsageReport` from the local
+[host](../host). It holds **no API keys** and makes no network calls of its own; the only
+permissions are `nativeMessaging` (to talk to the host) and `storage` (to remember the
+selected window / host name).
+
+## Load it (unpacked)
+
+1. `chrome://extensions` → enable **Developer mode**.
+2. **Load unpacked** → select this `extension/` folder.
+3. Click the toolbar icon.
+
+Until the native host is installed (see [host install docs](../host), M5), the popup shows
+a **preview** using `sample-report.json` and a banner saying so. Once the host is
+registered under the name in Options (default `com.ohmytokens.host`), the popup pulls live
+data via `chrome.runtime.connectNative`.
+
+## Files
+
+| File | Purpose |
+|------|---------|
+| `manifest.json` | MV3 manifest (`nativeMessaging` + `storage`) |
+| `popup.html/.css/.js` | the popup UI: per-provider cards, today/7d/30d toggle, refresh |
+| `usage-client.js` | data layer — native host first, then the bundled sample fallback |
+| `options.html/.js` | configure the native host name + default window |
+| `sample-report.json` | synthetic preview data (no real usage) |
+
+## Display rules
+
+- **Tokens** (`measured_tokens`) are shown plainly — these reconcile with `ccusage`.
+- **Cost** (`estimated_cost`) is shown muted with an "est" tag — it is a provisional estimate.
+- **Balance** (DeepSeek) is always shown regardless of the selected window (it's point-in-time).
+- Per-provider `warnings` collapse into a single hover note, not loud banners.

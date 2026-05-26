@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "oh-my-tokens",
+  "version": "0.0.1",
+  "description": "See your Codex / Claude Code / DeepSeek usage in one place.",
+  "permissions": ["nativeMessaging", "storage"],
+  "action": {
+    "default_title": "oh-my-tokens",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html",
+  "icons": {}
+}

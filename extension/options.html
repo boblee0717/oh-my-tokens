@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+    <title>oh-my-tokens — options</title>
+    <style>
+      body { width: 420px; padding: 16px; }
+      label { display: block; margin: 12px 0 4px; color: var(--muted); }
+      input { width: 100%; padding: 6px 8px; background: var(--card); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; }
+      button { margin-top: 14px; padding: 6px 12px; background: var(--accent); color: #11131a; border: none; border-radius: 6px; cursor: pointer; }
+      .saved { color: var(--accent); margin-left: 8px; }
+      p.hint { color: var(--muted); font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <h1>oh-my-tokens — options</h1>
+    <p class="hint">
+      The DeepSeek API key is configured in the native host's local config, not here —
+      it never enters the browser.
+    </p>
+
+    <label for="hostName">Native messaging host name</label>
+    <input id="hostName" type="text" placeholder="com.ohmytokens.host" />
+
+    <label for="defaultWindow">Default time window</label>
+    <input id="defaultWindow" type="text" placeholder="7d (today | 7d | 30d)" />
+
+    <div>
+      <button id="save" type="button">Save</button>
+      <span id="saved" class="saved hidden">Saved</span>
+    </div>
+
+    <script src="options.js"></script>
+  </body>
+</html>
