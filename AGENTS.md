@@ -21,6 +21,15 @@ If these point at stale/separate worktrees, merged fixes won't appear (this caus
 After a fix lands, re-run `host/install-macos.sh` from there and reload the extension from
 that same `extension/` folder (fixed ID `obmkhlamcmbmacadoolbfaagmojdobah`).
 
+## 2026-05-26: Node version — "Native host has exited"
+
+- `run-host.sh` used to run `node native-host.ts` directly. Node < 22 cannot run `.ts` files.
+  Chrome launches the host, it crashes immediately → "Native host has exited" in popup.
+- Fixed: detect Node major version. ≥ 22 uses `--experimental-strip-types`. < 22 falls back to `tsx`.
+  (Node 18/20 users must `npm i -g tsx` or upgrade Node.)
+- If the error still appears after the fix, check: `node -v`, `tsx --version`, and run
+  `./host/run-host.sh` manually (it will print a clear error if Node is too old without `tsx`).
+
 ## 2026-05-26: Private key accidentally committed in manifest `key` field
 
 - commit `2610be7` (openDSFlashV4) added a PKCS#8 **private key** to `manifest.json`'s `"key"` field, instead of a public key.

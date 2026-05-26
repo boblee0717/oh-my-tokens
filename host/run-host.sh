@@ -15,4 +15,4 @@ if [ -z "${NODE_BIN}" ]; then
   exit 1
 fi
 
-exec "${NODE_BIN}" "${DIR}/native-host.ts" "$@"
+exec "${NODE_BIN}" "${DIR}/native-host.js" "$@"
