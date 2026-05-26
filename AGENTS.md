@@ -23,12 +23,15 @@ that same `extension/` folder (fixed ID `obmkhlamcmbmacadoolbfaagmojdobah`).
 
 ## 2026-05-26: Node version — "Native host has exited"
 
-- `run-host.sh` used to run `node native-host.ts` directly. Node < 22 cannot run `.ts` files.
-  Chrome launches the host, it crashes immediately → "Native host has exited" in popup.
-- Fixed: detect Node major version. ≥ 22 uses `--experimental-strip-types`. < 22 falls back to `tsx`.
-  (Node 18/20 users must `npm i -g tsx` or upgrade Node.)
-- If the error still appears after the fix, check: `node -v`, `tsx --version`, and run
-  `./host/run-host.sh` manually (it will print a clear error if Node is too old without `tsx`).
+- Cause: `run-host.sh` ran `node native-host.ts` — running multi-file TypeScript needs
+  Node ≈23.6+ (we dev on 26). On common Node 18/20/22 LTS the host crashed on launch →
+  "Native host has exited" (a friend's install hit this).
+- **Fix: the host runtime is plain JavaScript (ESM)** — `host/*.js` + `host/parsers/*.js`;
+  `run-host.sh` does `exec node native-host.js`. Runs on **Node ≥ 18**, no build, no deps,
+  no TS flags. (`host/*.ts` runtime files are now redundant dead weight — pending cleanup;
+  `shared/schema.ts` stays as a types-only reference. Tests under `host/test/*.ts` are dev-only.)
+- Hardening: `install.sh` preflights Node ≥ 18; `run-host.sh` appends host stderr to
+  `~/.oh-my-tokens/host.log` so a failed launch is diagnosable.
 
 ## 2026-05-26: Private key accidentally committed in manifest `key` field
 

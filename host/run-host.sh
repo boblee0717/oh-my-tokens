@@ -15,4 +15,7 @@ if [ -z "${NODE_BIN}" ]; then
   exit 1
 fi
 
-exec "${NODE_BIN}" "${DIR}/native-host.js" "$@"
+# Log host stderr so a failed launch ("Native host has exited") is diagnosable.
+# stdout is reserved for Chrome's length-prefixed native-messaging protocol.
+mkdir -p "${HOME}/.oh-my-tokens" 2>/dev/null || true
+exec "${NODE_BIN}" "${DIR}/native-host.js" "$@" 2>>"${HOME}/.oh-my-tokens/host.log"

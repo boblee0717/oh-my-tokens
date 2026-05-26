@@ -30,6 +30,19 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# 0. Preflight: Node must exist and be >= 18 (the host is plain JS). Fail early with a
+#    clear message instead of Chrome later reporting "Native host has exited".
+NODE_BIN="$(command -v node || true)"
+if [ -z "${NODE_BIN}" ]; then
+  echo "Node not found. Install Node >= 18 (e.g. 'brew install node' or https://nodejs.org) and re-run." >&2
+  exit 1
+fi
+NODE_MAJOR="$("${NODE_BIN}" -e 'console.log(process.versions.node.split(".")[0])' 2>/dev/null || echo 0)"
+if [ "${NODE_MAJOR}" -lt 18 ] 2>/dev/null; then
+  echo "Node ${NODE_MAJOR} is too old; need >= 18. Upgrade Node and re-run." >&2
+  exit 1
+fi
+
 # 1. Native messaging host (reads ~/.claude and ~/.codex; calls nothing else).
 "${DIR}/host/install-macos.sh" "${EXT_ID}" "${BROWSER}"
 
