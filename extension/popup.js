@@ -45,6 +45,7 @@ function formatReset(iso) {
 
 let report = null;
 let currentWindow = "7d";
+const PREVIEW_TEXT = "Preview data — the local host isn't connected yet. See the README to install it.";
 
 async function getSettings() {
   try {
@@ -164,7 +165,15 @@ function render() {
     cards.innerHTML = '<div class="empty">Loading…</div>';
     return;
   }
-  banner.classList.toggle("hidden", report._source !== "sample");
+  if (report._source === "sample") {
+    banner.textContent = report._nativeError
+      ? `Preview data — native host unavailable: ${report._nativeError}`
+      : PREVIEW_TEXT;
+    banner.classList.remove("hidden");
+  } else {
+    banner.classList.add("hidden");
+    banner.textContent = PREVIEW_TEXT;
+  }
   renderQuota();
 
   // Usage cards: token records for the selected window only. Quota % and balance

@@ -56,9 +56,12 @@ The key stays on your machine (never synced). Resolution order:
 3. **`DEEPSEEK_API_KEY`** env var — handy for the CLI (`DEEPSEEK_API_KEY=sk-... node host/index.ts`);
    note GUI Chrome on macOS does not inherit your shell env, so this rarely works for the popup.
 
-`install-macos.sh` writes `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.ohmytokens.host.json`
-pointing at `run-host.sh` (which resolves `node` and runs `native-host.ts`). The host speaks
-Chrome's length-prefixed stdio protocol: it reads one request and replies with the
+`install-macos.sh` copies the host runtime to `~/.oh-my-tokens/native-host/` and writes
+`~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.ohmytokens.host.json`
+pointing at that installed `run-host.sh` (which resolves `node` and runs `native-host.ts`).
+This avoids pointing Chrome at an arbitrary clone path such as `~/Documents`, where macOS
+privacy controls can prevent Chrome's child process from opening the script. The host
+speaks Chrome's length-prefixed stdio protocol: it reads one request and replies with the
 `UsageReport`. Verified locally end-to-end with a framed request/response.
 
 Tests run against **desensitized synthetic fixtures** (`fixtures/`), not real logs, and

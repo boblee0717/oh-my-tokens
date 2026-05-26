@@ -14,6 +14,10 @@ git clone https://github.com/boblee0717/oh-my-tokens.git /tmp/oh-my-tokens
 #   --browser canary|beta|edge
 ```
 
+The installer copies the Native Messaging host runtime to `~/.oh-my-tokens/native-host/`
+and registers Chrome against that stable path, so the host is not executed from the
+temporary clone directory.
+
 **Fully automatic (Chrome not running):** quit Chrome, then `./install.sh --launch` — it
 registers the host *and* auto-loads the extension (verified). No manual step.
 

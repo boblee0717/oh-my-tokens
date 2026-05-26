@@ -18,19 +18,35 @@ case "${BROWSER}" in
 esac
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-chmod +x "${DIR}/run-host.sh"
+REPO_ROOT="$(cd "${DIR}/.." && pwd)"
+INSTALL_ROOT="${HOME}/.oh-my-tokens/native-host"
+INSTALL_HOST_DIR="${INSTALL_ROOT}/host"
+INSTALL_SHARED_DIR="${INSTALL_ROOT}/shared"
+
+# Chrome may launch the native host from a much more restricted environment than
+# the user's shell. Install the runtime under HOME instead of pointing Chrome at
+# the arbitrary clone location (for example ~/Documents, which can be TCC-gated).
+rm -rf "${INSTALL_ROOT}"
+mkdir -p "${INSTALL_HOST_DIR}" "${INSTALL_SHARED_DIR}"
+cp "${DIR}"/*.ts "${INSTALL_HOST_DIR}/"
+cp "${DIR}/run-host.sh" "${INSTALL_HOST_DIR}/"
+cp -R "${DIR}/parsers" "${INSTALL_HOST_DIR}/"
+cp "${REPO_ROOT}/shared"/*.ts "${INSTALL_SHARED_DIR}/"
+chmod +x "${INSTALL_HOST_DIR}/run-host.sh"
+HOST_PATH="${INSTALL_HOST_DIR}/run-host.sh"
 
 TARGET_DIR="${HOME}/Library/Application Support/${APP_SUPPORT}/NativeMessagingHosts"
 mkdir -p "${TARGET_DIR}"
 TARGET="${TARGET_DIR}/com.ohmytokens.host.json"
 
-sed -e "s#__HOST_PATH__#${DIR}/run-host.sh#" \
+sed -e "s#__HOST_PATH__#${HOST_PATH}#" \
     -e "s#__EXTENSION_ID__#${EXTENSION_ID}#" \
     "${DIR}/com.ohmytokens.host.json.template" > "${TARGET}"
 
 echo "Installed native host manifest:"
 echo "  ${TARGET}"
-echo "  path        = ${DIR}/run-host.sh"
+echo "  runtime     = ${INSTALL_ROOT}"
+echo "  path        = ${HOST_PATH}"
 echo "  allowed for = chrome-extension://${EXTENSION_ID}/"
 echo
 echo "Reload the extension at chrome://extensions, then open the popup."

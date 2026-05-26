@@ -48,22 +48,29 @@ function readMessage(): Promise<unknown> {
 }
 
 function writeMessage(obj: unknown): Promise<void> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const json = Buffer.from(JSON.stringify(obj), "utf8");
     const header = Buffer.alloc(4);
     header.writeUInt32LE(json.length, 0);
-    process.stdout.write(Buffer.concat([header, json]), () => resolve());
+    process.stdout.write(Buffer.concat([header, json]), (err?: Error | null) => {
+      if (err) reject(err);
+      else resolve();
+    });
   });
 }
 
 async function main(): Promise<void> {
   // The request may carry a DeepSeek key the user configured in the extension options.
   const req = (await readMessage()) as { deepseekApiKey?: string } | null;
+  process.stdin.pause();
   const deepseekApiKey =
     req && typeof req.deepseekApiKey === "string" ? req.deepseekApiKey : undefined;
   const report = await buildUsageReport(HOST_VERSION, { deepseekApiKey });
   await writeMessage(report);
-  process.exit(0);
+  process.exitCode = 0;
 }
 
-main();
+main().catch((e) => {
+  console.error(`oh-my-tokens native host failed: ${e instanceof Error ? e.stack : String(e)}`);
+  process.exitCode = 1;
+});
