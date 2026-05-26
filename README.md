@@ -34,10 +34,14 @@ A **Chrome [Native Messaging](https://developer.chrome.com/docs/extensions/devel
 | Tool | Source | What we get |
 |------|--------|-------------|
 | **Claude Code** | local JSONL `~/.claude/projects/**/*.jsonl` | per-message `usage` (input / output / cache tokens) → tokens + **estimated** cost by model |
-| **Codex** | local `~/.codex/sessions/` + `archived_sessions/` | session logs with token usage |
-| **DeepSeek** | DeepSeek API (`GET /user/balance`) | account balance; requires an API key |
+| **Codex** | local `~/.codex/sessions/` + `archived_sessions/` | session token usage **and real quota % (5h + weekly) from `rate_limits`** + reset + plan |
+| **DeepSeek** | API (`GET /user/balance`) for balance; platform web (`/api/v0/usage/amount`) for token usage | balance (key) + per-model token usage via your logged-in platform.deepseek.com session |
 
-> **Subscription quota is not available.** For Claude Code and Codex we show local-log tokens + an **estimated** cost only — never an official "plan remaining". Only DeepSeek reports a real balance.
+> **Quota %**: **Codex** exposes it via local `rate_limits`; **Claude** exposes it on the web
+> (`claude.ai/api/organizations/{org}/usage` — current session + weekly limits), which the
+> extension fetches using your logged-in claude.ai session (no cookie files). Both render as
+> progress bars. Claude's figure is **account-level** plan usage, not Claude-Code-CLI-specific.
+> Claude Code local logs still give tokens + estimated cost. DeepSeek shows balance.
 
 ## Repo layout
 
@@ -67,8 +71,13 @@ Log parsing happens entirely on your machine; Claude Code / Codex usage never le
 
 ## Roadmap
 
-- [ ] **M1** — native host parses Claude Code logs → usage JSON (reconcile against `ccusage`)
-- [ ] **M2** — Codex session parser (+ dedup across `sessions/` and `archived_sessions/`)
-- [ ] **M3** — DeepSeek client (balance)
-- [ ] **M4** — extension popup UI (per-provider cards, time-window toggle, refresh) + options
-- [ ] **M5** — packaging + native-host manifest install docs
+- [x] **M1** — native host parses Claude Code logs → usage JSON (reconciled against `ccusage`, ~99.9% on tokens)
+- [x] **M2** — Codex session parser (+ dedup across `sessions/` and `archived_sessions/`)
+- [x] **M3** — DeepSeek client (balance)
+- [x] **M4** — extension popup UI (per-provider cards, time-window toggle, refresh) + options
+- [x] **M5** — Native Messaging host wrapper + macOS install script (end-to-end verified locally)
+- [x] **M6** — hardening: escape popup innerHTML, multi-channel install
+- [x] **M7** — Codex quota % (5h + weekly rate-limit usage) + light-theme UI redesign
+- [x] **M8** — Claude account quota % from claude.ai web (logged-in session, no cookie files)
+- [x] **M9** — configurable DeepSeek key (extension Options / config file / env)
+- [x] **M11** — DeepSeek per-model token usage from platform.deepseek.com (hidden-tab fetch, in-page Bearer token)

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+    <title>oh-my-tokens — options</title>
+    <style>
+      body { width: 420px; padding: 16px; }
+      label { display: block; margin: 12px 0 4px; color: var(--muted); }
+      input { width: 100%; padding: 6px 8px; background: var(--card); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; }
+      button { margin-top: 14px; padding: 6px 12px; background: var(--accent); color: #11131a; border: none; border-radius: 6px; cursor: pointer; }
+      .saved { color: var(--accent); margin-left: 8px; }
+      p.hint { color: var(--muted); font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <h1>oh-my-tokens — options</h1>
+
+    <label for="deepseekKey">DeepSeek API key</label>
+    <input id="deepseekKey" type="password" placeholder="sk-... (stored locally in this browser)" />
+    <p class="hint">
+      Stored in this browser's local storage (not synced) and sent to the local host to read
+      your balance. Prefer it out of the browser entirely? Leave blank and put it in
+      <code>~/.oh-my-tokens/config.json</code> instead.
+    </p>
+    <p class="hint">Optional — leave blank if you don't use DeepSeek. Nothing else needs configuring.</p>
+
+    <div>
+      <button id="save" type="button">Save</button>
+      <span id="saved" class="saved hidden">Saved</span>
+    </div>
+
+    <script src="options.js"></script>
+  </body>
+</html>

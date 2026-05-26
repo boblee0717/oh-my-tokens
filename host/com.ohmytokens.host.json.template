@@ -1,0 +1,7 @@
+{
+  "name": "com.ohmytokens.host",
+  "description": "oh-my-tokens usage native host",
+  "path": "__HOST_PATH__",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://__EXTENSION_ID__/"]
+}

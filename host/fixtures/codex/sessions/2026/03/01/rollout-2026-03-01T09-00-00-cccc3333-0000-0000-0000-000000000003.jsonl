@@ -1,0 +1,3 @@
+{"timestamp":"2026-03-01T09:00:00.000Z","type":"session_meta","payload":{"id":"cccc3333-0000-0000-0000-000000000003"}}
+{"timestamp":"2026-03-01T09:00:01.000Z","type":"turn_context","payload":{"model":"gpt-5.5"}}
+{"timestamp":"2026-03-01T09:00:02.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":9999,"cached_input_tokens":0,"output_tokens":9999,"reasoning_output_tokens":0,"total_tokens":19998}}}}
