@@ -43,7 +43,7 @@ If only the bundled sample data appears, the Native Messaging host isn't connect
 For DeepSeek balance, open the extension Options page and paste your key. Or create `~/.oh-my-tokens/config.json`:
 
 ```json
-{ "deepSeekApiKey": "sk-..." }
+{ "deepseekApiKey": "sk-..." }
 ```
 
 ---
