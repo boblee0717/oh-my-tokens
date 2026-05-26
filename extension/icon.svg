@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4b8bff"/>
+      <stop offset="1" stop-color="#2f6feb"/>
+    </linearGradient>
+  </defs>
+  <!-- app tile -->
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#bg)"/>
+  <!-- quota gauge: track + ~68% value arc (gap at the bottom) -->
+  <circle cx="64" cy="64" r="38" fill="none" stroke="#ffffff" stroke-opacity="0.28" stroke-width="14"/>
+  <circle cx="64" cy="64" r="38" fill="none" stroke="#ffffff" stroke-width="14"
+          stroke-linecap="round" stroke-dasharray="162 77" transform="rotate(-90 64 64)"/>
+  <!-- token hub -->
+  <circle cx="64" cy="64" r="8.5" fill="#ffffff"/>
+</svg>
