@@ -91,9 +91,11 @@ function renderQuota() {
     const recs = quota.filter((q) => q.provider === p);
     if (!recs.length) return "";
     const plan = recs.find((q) => q.planType)?.planType;
+    const note = distinctWarnings(recs)[0]; // e.g. "account-level plan usage…"
     return `<div class="quota-group">
       <div class="quota-provider">${esc(PROVIDER_NAMES[p] || p)}${plan ? `<span class="plan">${esc(plan)}</span>` : ""}</div>
       ${quotaRowsHtml(recs)}
+      ${note ? `<div class="quota-note">${esc(note)}</div>` : ""}
     </div>`;
   }).join("");
   box.innerHTML = html;
