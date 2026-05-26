@@ -8,8 +8,19 @@ const PROVIDER_NAMES = {
 const PROVIDER_ORDER = ["claude-code", "codex", "deepseek"];
 
 const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
-const money = (n, ccy) =>
-  new Intl.NumberFormat("en", { style: "currency", currency: ccy || "USD" }).format(n);
+
+// Escape anything interpolated into innerHTML. Model names, currency codes and
+// warnings originate from logs / external APIs, so treat them as untrusted.
+const ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ESC[c]);
+
+function money(n, ccy) {
+  try {
+    return new Intl.NumberFormat("en", { style: "currency", currency: ccy || "USD" }).format(n);
+  } catch {
+    return `${n} ${ccy || ""}`.trim(); // invalid currency code → plain
+  }
+}
 
 let report = null;
 let currentWindow = "7d";
@@ -45,22 +56,22 @@ function renderProviderCard(provider, records) {
       metric("out", compact.format(m.outputTokens)),
       metric("cache", compact.format(m.cacheTokens)),
     ];
-    if (cost) parts.push(metric("cost", money(cost.costUSD, cost.currency), "cost"));
-    rows += `<div class="model-row"><div class="model-name">${m.model}</div><div class="metrics">${parts.join("")}</div></div>`;
+    if (cost) parts.push(metric("cost", esc(money(cost.costUSD, cost.currency)), "cost"));
+    rows += `<div class="model-row"><div class="model-name">${esc(m.model)}</div><div class="metrics">${parts.join("")}</div></div>`;
   }
 
   for (const b of balances) {
-    rows += `<div class="model-row"><div class="metrics">${metric("balance", money(b.balance, b.currency), "balance")}</div></div>`;
+    rows += `<div class="model-row"><div class="metrics">${metric("balance", esc(money(b.balance, b.currency)), "balance")}</div></div>`;
   }
 
   const reqTotal = measured.reduce((s, r) => s + (r.requests || 0), 0);
   const meta = measured.length ? `${compact.format(reqTotal)} req` : "";
   const warns = distinctWarnings(records);
   const warnHtml = warns.length
-    ? `<div class="warn-note" title="${warns.join("&#10;")}">⚠ ${warns.length} note${warns.length > 1 ? "s" : ""}</div>`
+    ? `<div class="warn-note" title="${warns.map(esc).join("&#10;")}">⚠ ${warns.length} note${warns.length > 1 ? "s" : ""}</div>`
     : "";
 
-  return `<section class="card"><h2>${PROVIDER_NAMES[provider] || provider}<span class="provider-meta">${meta}</span></h2>${rows || '<div class="model-name">no data</div>'}${warnHtml}</section>`;
+  return `<section class="card"><h2>${esc(PROVIDER_NAMES[provider] || provider)}<span class="provider-meta">${meta}</span></h2>${rows || '<div class="model-name">no data</div>'}${warnHtml}</section>`;
 }
 
 function render() {

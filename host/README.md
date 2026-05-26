@@ -35,8 +35,9 @@ This lets the extension pull live data instead of the bundled sample.
 ```bash
 # 1. Load the extension unpacked (chrome://extensions → Load unpacked → ../extension)
 #    and copy its Extension ID.
-# 2. Register the host:
-./host/install-macos.sh <EXTENSION_ID>
+# 2. Register the host (default Chrome; pass a channel for others):
+./host/install-macos.sh <EXTENSION_ID>           # stable Chrome
+# ./host/install-macos.sh <EXTENSION_ID> canary  # chrome | beta | canary | chromium | edge
 # 3. (optional) export DEEPSEEK_API_KEY in the environment Chrome inherits, for balance.
 # 4. Reload the extension and open the popup.
 ```
