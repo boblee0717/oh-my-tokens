@@ -9,9 +9,9 @@
 // Cost is intentionally NOT estimated for Codex: there is no authoritative price source
 // for the gpt-5.x models yet (see M1 reconciliation). Tokens are the trustworthy output.
 //
-// Note: Codex `token_count` events also carry `rate_limits` (plan_type + used_percent for
-// a 5h and a weekly window) — the closest thing to a real subscription-quota signal.
-// Surfacing that is left to a later milestone; M2 covers token usage only.
+// Codex `token_count` events also carry `rate_limits` (plan_type + used_percent for a 5h
+// "primary" window and a weekly "secondary" window) — a real subscription-quota signal.
+// We surface the most recent rate_limits as `quota_percent` records (M7).
 
 import { readdir, readFile } from "node:fs/promises";
 import { join, basename } from "node:path";
@@ -27,6 +27,8 @@ interface SessionUsage {
   cacheTokens: number; // cached_input_tokens
   outputTokens: number; // output + reasoning
   totalTokens: number;
+  rateLimits: any | null; // latest rate_limits object seen in the session
+  rateLimitsTs: number; // epoch ms of that rate_limits event
 }
 
 export interface ParseOptions {
@@ -67,6 +69,8 @@ function parseSession(file: string, text: string): SessionUsage | null {
   let sessionId = sessionIdFromFilename(file);
   let model = "unknown";
   let best: { ts: number; usage: any } | null = null;
+  let rateLimits: any | null = null;
+  let rateLimitsTs = 0;
 
   for (const line of text.split("\n")) {
     const trimmed = line.trim();
@@ -83,14 +87,16 @@ function parseSession(file: string, text: string): SessionUsage | null {
       sessionId = payload.id;
     } else if (type === "turn_context" && payload.model) {
       model = payload.model;
-    } else if (type === "event_msg" && payload.type === "token_count" && payload.info) {
-      const total = payload.info.total_token_usage;
-      if (total) {
-        const ts = Date.parse(o.timestamp ?? "");
-        const totalTokens = num(total.total_tokens);
-        if (!best || totalTokens >= num(best.usage.total_tokens)) {
-          best = { ts: Number.isNaN(ts) ? (best?.ts ?? 0) : ts, usage: total };
-        }
+    } else if (type === "event_msg" && payload.type === "token_count") {
+      const ts = Date.parse(o.timestamp ?? "");
+      const tsMs = Number.isNaN(ts) ? 0 : ts;
+      const total = payload.info?.total_token_usage;
+      if (total && (!best || num(total.total_tokens) >= num(best.usage.total_tokens))) {
+        best = { ts: tsMs, usage: total };
+      }
+      if (payload.rate_limits && tsMs >= rateLimitsTs) {
+        rateLimits = payload.rate_limits;
+        rateLimitsTs = tsMs;
       }
     }
   }
@@ -108,6 +114,51 @@ function parseSession(file: string, text: string): SessionUsage | null {
     cacheTokens: cached,
     outputTokens: output,
     totalTokens: num(u.total_tokens),
+    rateLimits,
+    rateLimitsTs,
+  };
+}
+
+// window_minutes → human label (300 → "5h", 10080 → "Weekly").
+function windowLabel(minutes: number): string {
+  if (minutes === 300) return "5h";
+  if (minutes === 10080) return "Weekly";
+  if (minutes % 1440 === 0) return `${minutes / 1440}d`;
+  if (minutes % 60 === 0) return `${minutes / 60}h`;
+  return `${minutes}m`;
+}
+
+// Build a quota_percent record from one rate-limit window, or null if absent.
+function quotaRecord(
+  source: string,
+  win: any,
+  planType: string | null,
+  updatedAt: string,
+): UsageRecord | null {
+  if (!win || typeof win.used_percent !== "number") return null;
+  const label = windowLabel(num(win.window_minutes));
+  const resetsAt = win.resets_at ? new Date(num(win.resets_at) * 1000).toISOString() : undefined;
+  return {
+    id: `codex::quota:${label.toLowerCase()}:quota_percent`,
+    provider: "codex",
+    model: null,
+    metricType: "quota_percent",
+    source,
+    window: "today",
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheTokens: 0,
+    requests: 0,
+    costUSD: null,
+    balance: null,
+    currency: null,
+    usedPercent: win.used_percent,
+    windowLabel: label,
+    resetsAt,
+    planType: planType ?? undefined,
+    updatedAt,
+    confidence: "high",
+    warnings: [],
   };
 }
 
@@ -139,6 +190,20 @@ export async function parseCodexUsage(opts: ParseOptions = {}): Promise<UsageRec
 
   const records: UsageRecord[] = [];
   const updatedAt = now.toISOString();
+
+  // Quota: surface the single most recent rate_limits across all sessions.
+  let latestRL: SessionUsage | null = null;
+  for (const s of sessions) {
+    if (s.rateLimits && (!latestRL || s.rateLimitsTs > latestRL.rateLimitsTs)) latestRL = s;
+  }
+  if (latestRL?.rateLimits) {
+    const rl = latestRL.rateLimits;
+    const plan = typeof rl.plan_type === "string" ? rl.plan_type : null;
+    for (const win of [rl.primary, rl.secondary]) {
+      const rec = quotaRecord(source, win, plan, updatedAt);
+      if (rec) records.push(rec);
+    }
+  }
 
   for (const window of windows) {
     const cutoff = windowCutoff(window, now);

@@ -8,6 +8,7 @@ export type MetricType =
   | "measured_tokens" // counted directly from local logs
   | "estimated_cost" // derived from tokens × a model price table
   | "balance" // real account balance from a provider API (DeepSeek)
+  | "quota_percent" // % of a rate-limit window consumed (Codex rate_limits)
   | "unknown"; // source unavailable (e.g. subscription quota)
 
 export type TimeWindow = "today" | "7d" | "30d";
@@ -32,6 +33,12 @@ export interface UsageRecord {
   costUSD: number | null; // estimated for token-based providers; null if not computed
   balance: number | null; // real balance (DeepSeek); null otherwise
   currency: string | null; // e.g. "USD", "CNY" — for balance
+
+  // Quota fields — present only for metricType "quota_percent".
+  usedPercent?: number; // 0-100, % of the rate-limit window consumed
+  windowLabel?: string; // human label for the quota window, e.g. "5h", "Weekly"
+  resetsAt?: string; // ISO-8601 when the quota window resets
+  planType?: string; // e.g. "plus", "pro", "prolite"
 
   updatedAt: string; // ISO-8601 when this record was produced
   confidence: "high" | "medium" | "low";

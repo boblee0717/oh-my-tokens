@@ -34,10 +34,10 @@ A **Chrome [Native Messaging](https://developer.chrome.com/docs/extensions/devel
 | Tool | Source | What we get |
 |------|--------|-------------|
 | **Claude Code** | local JSONL `~/.claude/projects/**/*.jsonl` | per-message `usage` (input / output / cache tokens) → tokens + **estimated** cost by model |
-| **Codex** | local `~/.codex/sessions/` + `archived_sessions/` | session logs with token usage |
+| **Codex** | local `~/.codex/sessions/` + `archived_sessions/` | session token usage **and real quota % (5h + weekly) from `rate_limits`** + reset + plan |
 | **DeepSeek** | DeepSeek API (`GET /user/balance`) | account balance; requires an API key |
 
-> **Subscription quota is not available.** For Claude Code and Codex we show local-log tokens + an **estimated** cost only — never an official "plan remaining". Only DeepSeek reports a real balance.
+> **Quota %**: only **Codex** exposes a usage-percentage signal (its `rate_limits`), which the popup shows as progress bars. Claude Code subscription logs carry **no** quota field, so Claude shows tokens + an **estimated** cost only (never an official "plan remaining"). DeepSeek shows balance.
 
 ## Repo layout
 
@@ -72,3 +72,5 @@ Log parsing happens entirely on your machine; Claude Code / Codex usage never le
 - [x] **M3** — DeepSeek client (balance)
 - [x] **M4** — extension popup UI (per-provider cards, time-window toggle, refresh) + options
 - [x] **M5** — Native Messaging host wrapper + macOS install script (end-to-end verified locally)
+- [x] **M6** — hardening: escape popup innerHTML, multi-channel install
+- [x] **M7** — Codex quota % (5h + weekly rate-limit usage) + light-theme UI redesign

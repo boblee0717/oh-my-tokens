@@ -28,7 +28,12 @@ data via `chrome.runtime.connectNative`.
 
 ## Display rules
 
+- **Quota %** (`quota_percent`, Codex `rate_limits`) is the hero: a progress bar per window
+  (5h / Weekly) colored by level (green < 50, amber < 80, red ≥ 80) with reset time + plan badge.
+  Always shown regardless of the selected token window.
 - **Tokens** (`measured_tokens`) are shown plainly — these reconcile with `ccusage`.
 - **Cost** (`estimated_cost`) is shown muted with an "est" tag — it is a provisional estimate.
 - **Balance** (DeepSeek) is always shown regardless of the selected window (it's point-in-time).
 - Per-provider `warnings` collapse into a single hover note, not loud banners.
+
+Light theme, card-based layout with a time-of-day greeting.

@@ -62,6 +62,22 @@ test("id rule and missing-dir safety", async () => {
   assert.deepEqual(await parseCodexUsage({ baseDir: "/no/such/dir", now: NOW }), []);
 });
 
+test("surfaces the latest rate_limits as quota_percent records (5h + weekly)", async () => {
+  const records = await run();
+  const quota = records.filter((r) => r.metricType === "quota_percent");
+  assert.equal(quota.length, 2);
+
+  const five = quota.find((q) => q.windowLabel === "5h")!;
+  assert.equal(five.usedPercent, 18); // from the latest token_count event, not the earlier 12
+  assert.equal(five.planType, "plus");
+  assert.equal(five.provider, "codex");
+  assert.equal(five.model, null);
+  assert.ok(five.resetsAt);
+
+  const weekly = quota.find((q) => q.windowLabel === "Weekly")!;
+  assert.equal(weekly.usedPercent, 42);
+});
+
 test("falls back to filename-derived session id when session_meta is absent", async () => {
   const noMetaDir = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "codex-nometa");
   const records = await parseCodexUsage({ baseDir: noMetaDir, now: NOW });

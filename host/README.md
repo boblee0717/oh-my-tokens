@@ -76,9 +76,10 @@ local-day assertions are deterministic.
 - Cost is **not** estimated (no authoritative gpt-5.x prices yet); records carry a warning.
 - `requests` counts **sessions**, not turns (flagged in `warnings`).
 
-> Codex `token_count` events also carry `rate_limits` (`plan_type` + `used_percent` over a
-> 5h and a weekly window) — the closest thing to a real subscription-quota signal. Surfacing
-> it is a candidate for M4; M2 is token usage only.
+- **Quota (M7):** Codex `token_count` events carry `rate_limits` (`plan_type` + `used_percent`
+  over a 5h "primary" and weekly "secondary" window). We surface the **most recent** one as
+  `quota_percent` records (one per window) with `usedPercent`, `windowLabel`, `resetsAt`, `planType`.
+  This is the real subscription-quota signal the popup shows as progress bars.
 
 ### Codex reconciliation note vs `ccusage`
 
