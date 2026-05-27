@@ -86,6 +86,16 @@ test("id follows the documented rule for both metric types", async () => {
   );
 });
 
-test("missing baseDir yields no records, not a throw", async () => {
-  assert.deepEqual(await parseClaudeUsage({ baseDir: "/no/such/dir/xyz", now: NOW }), []);
+test("missing baseDir yields login_prompt records, not a throw", async () => {
+  const records = await parseClaudeUsage({ baseDir: "/no/such/dir/xyz", now: NOW });
+  assert.equal(records.length, 3); // one per time window
+  assert.ok(records.every((r) => r.metricType === "login_prompt"));
+  assert.ok(records.every((r) => r.warnings.length === 1));
+});
+
+test("missing baseDir login_prompt records include expected windows", async () => {
+  const records = await parseClaudeUsage({ baseDir: "/no/such/dir/xyz", now: NOW });
+  for (const w of ["today", "7d", "30d"]) {
+    assert.ok(records.some((r) => r.window === w), `expected window ${w}`);
+  }
 });

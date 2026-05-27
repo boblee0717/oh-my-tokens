@@ -6,8 +6,9 @@ const PROVIDER_NAMES = {
   "claude-code": "Claude Code",
   codex: "Codex",
   deepseek: "DeepSeek",
+  cursor: "Cursor",
 };
-const PROVIDER_ORDER = ["claude-code", "codex", "deepseek"];
+const PROVIDER_ORDER = ["claude-code", "codex", "deepseek", "cursor"];
 
 const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 
@@ -133,7 +134,9 @@ function distinctWarnings(records) {
 
 function renderProviderCard(provider, records) {
   const measured = records.filter((r) => r.metricType === "measured_tokens");
+  const reqCounted = records.filter((r) => r.metricType === "request_count");
   const costs = records.filter((r) => r.metricType === "estimated_cost");
+  const prompts = records.filter((r) => r.metricType === "login_prompt");
 
   let rows = "";
   for (const m of measured) {
@@ -146,15 +149,22 @@ function renderProviderCard(provider, records) {
     if (cost) parts.push(metric("cost", esc(money(cost.costUSD, cost.currency)), "cost"));
     rows += `<div class="model-row"><div class="model-name">${esc(m.model)}</div><div class="metrics">${parts.join("")}</div></div>`;
   }
+  for (const m of reqCounted) {
+    rows += `<div class="model-row"><div class="model-name">${esc(m.model)}</div><div class="metrics">${metric("req", compact.format(m.requests))}</div></div>`;
+  }
 
-  const reqTotal = measured.reduce((s, r) => s + (r.requests || 0), 0);
+  const reqTotal = measured.reduce((s, r) => s + (r.requests || 0), 0) + reqCounted.reduce((s, r) => s + (r.requests || 0), 0);
   const meta = measured.length ? `${compact.format(reqTotal)} req` : "";
   const warns = distinctWarnings(records);
   const warnHtml = warns.length
     ? `<div class="warn-note" title="${warns.map(esc).join("&#10;")}">⚠ ${warns.length} note${warns.length > 1 ? "s" : ""}</div>`
     : "";
 
-  return `<section class="card"><h2>${esc(PROVIDER_NAMES[provider] || provider)}<span class="provider-meta">${meta}</span></h2>${rows || '<div class="model-name">no data</div>'}${warnHtml}</section>`;
+  const loginPrompt = prompts.length
+    ? `<div class="model-row login-prompt">${esc(prompts[0].warnings?.[0] || "Login required")}</div>`
+    : "";
+
+  return `<section class="card"><h2>${esc(PROVIDER_NAMES[provider] || provider)}<span class="provider-meta">${meta}</span></h2>${rows || loginPrompt || '<div class="model-name">no data</div>'}${warnHtml}</section>`;
 }
 
 function render() {
@@ -176,13 +186,13 @@ function render() {
   }
   renderQuota();
 
-  // Usage cards: token records for the selected window only. Quota % and balance
-  // live in the Quota section above, so a provider with only those (e.g. DeepSeek
-  // balance) gets no empty Usage card.
+  // Usage cards: token/request records for the selected window only. Quota % and
+  // balance live in the Quota section above, so a provider with only those gets
+  // no empty Usage card.
   const tokenRecords = report.records.filter(
     (r) =>
       r.window === currentWindow &&
-      (r.metricType === "measured_tokens" || r.metricType === "estimated_cost"),
+      (r.metricType === "measured_tokens" || r.metricType === "estimated_cost" || r.metricType === "request_count" || r.metricType === "login_prompt"),
   );
 
   const html = PROVIDER_ORDER.map((p) => {
