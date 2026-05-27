@@ -94,32 +94,6 @@ export async function parseClaudeUsage(opts = {}) {
   const records = [];
   const updatedAt = now.toISOString();
 
-  if (!entries.length) {
-    for (const window of windows) {
-      records.push({
-        id: `claude-code:login:${window}`,
-        provider: "claude-code",
-        model: "",
-        metricType: "login_prompt",
-        source,
-        window,
-        inputTokens: 0,
-        outputTokens: 0,
-        cacheTokens: 0,
-        requests: 0,
-        costUSD: null,
-        balance: null,
-        currency: null,
-        updatedAt,
-        confidence: "high",
-        warnings: [
-          "No usage data found. Run \`claude login\` and start a conversation to generate data.",
-        ],
-      });
-    }
-    return records;
-  }
-
   for (const window of windows) {
     const cutoff = windowCutoff(window, now);
     const byModel = new Map();

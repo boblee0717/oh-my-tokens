@@ -63,12 +63,16 @@ export function mapUsage(json) {
   return out;
 }
 
-async function getJson(path) {
-  const res = await fetch(`${BASE}${path}`, {
+async function getJson(path, fetchImpl) {
+  const res = await fetchImpl(`${BASE}${path}`, {
     credentials: "include",
     headers: { Accept: "application/json" },
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(`HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
   return res.json();
 }
 
@@ -83,15 +87,27 @@ function firstOrgUuid(account) {
   return account?.organization?.uuid ?? null;
 }
 
-// Returns quota_percent records for Claude, or [] on any failure.
-export async function fetchClaudeQuota() {
+export const CLAUDE_LOGIN_URL = "https://claude.ai/login";
+
+// Returns { status, records, loginUrl }:
+//   "ok"          → records is the quota_percent list
+//   "needs_login" → user isn't signed in to claude.ai (401/403 or no org); UI prompts login
+//   "error"       → endpoint/shape changed or network failure; UI stays quiet
+// `fetchImpl` is injectable so the auth/login-state branches are unit-testable.
+export async function fetchClaudeQuota(fetchImpl = typeof fetch === "function" ? fetch : null) {
+  if (!fetchImpl) return { status: "error", records: [] };
   try {
-    if (typeof fetch !== "function") return [];
-    const orgUuid = firstOrgUuid(await getJson("/api/account"));
-    if (!orgUuid) return [];
-    const usage = await getJson(`/api/organizations/${encodeURIComponent(orgUuid)}/usage`);
-    return mapUsage(usage);
-  } catch {
-    return []; // not logged in / blocked / shape changed → Claude shows tokens only
+    const orgUuid = firstOrgUuid(await getJson("/api/account", fetchImpl));
+    if (!orgUuid) return { status: "needs_login", records: [], loginUrl: CLAUDE_LOGIN_URL };
+    const usage = await getJson(
+      `/api/organizations/${encodeURIComponent(orgUuid)}/usage`,
+      fetchImpl,
+    );
+    return { status: "ok", records: mapUsage(usage) };
+  } catch (e) {
+    if (e && (e.status === 401 || e.status === 403)) {
+      return { status: "needs_login", records: [], loginUrl: CLAUDE_LOGIN_URL };
+    }
+    return { status: "error", records: [] };
   }
 }

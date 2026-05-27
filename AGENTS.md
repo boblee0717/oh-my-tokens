@@ -11,14 +11,23 @@ machine share the same `boblee0717` SSH identity, so GitHub can't enforce it —
 hand the diff/patch or a precise description to claudeOpus, who integrates and pushes.
 (Rationale: avoids the repeated branch/master collisions seen 2026-05-26 — logo, manifest key.)
 
-## 2026-05-27: Cursor integration & Claude Code login prompt
+## 2026-05-27: Cursor integration & web-login prompts
 
-- **Cursor parser** (`host/parsers/cursor.js`): reads `~/.cursor/ai-tracking/ai-code-tracking.db` via
-  `/usr/bin/sqlite3`. Counts AI requests per model per time window. No token data available from Cursor.
-  Reports as `metricType: "request_count"` with requests count, zero tokens.
-- **Claude Code login prompt**: when `~/.claude/projects/` has no `.jsonl` log files, the parser emits
-  `login_prompt` records. Popup UI shows a yellow inline prompt: "Run \`claude login\` and start a conversation."
-- **Both committed in `9922acd`** (claudeOpus). 27 tests passing.
+- **Cursor — local parser** (`host/parsers/cursor.js`): reads `~/.cursor/ai-tracking/ai-code-tracking.db`
+  via `/usr/bin/sqlite3`. One AI request fans out to many code-hash rows, so requests are counted as
+  **DISTINCT `requestId`** (counting rows over-counted ~100x). `metricType: "request_count"`, zero tokens,
+  warned as "request counts, not tokens" + a CLI/Composer split. Cursor exposes no local token data.
+- **Cursor — web connector** (`extension/cursor-web.js`): primary usage signal. Fetches
+  `GET cursor.com/api/usage-summary` with `credentials:"include"` (host_permission `https://cursor.com/*`),
+  maps plan usage % → `quota_percent`. Field names are reverse-engineered (unverified live), so extraction
+  is tolerant and degrades to `[]`. Never reads/stores the WorkOS cookie.
+- **Login prompts (task #6) — web-auth driven, NOT native host.** The three web connectors
+  (`claude-web.js`, `deepseek-usage.js`, `cursor-web.js`) return `{ status: "ok"|"needs_login"|"error",
+  records, loginUrl }`. `needs_login` (401/403, no org, no token, or `not_authenticated` body) → popup shows a
+  clickable "Log in to X →" link. We deliberately do **not** infer login state from the native host
+  ("no local logs" ≠ "not logged in" — would misfire). An earlier native-host `login_prompt` approach
+  (in `9922acd`) was removed for this reason.
+- Local parser is a supplement (request counts in the Usage section); the web connector is the quota source.
 
 ## DEPLOY NOTE: keep one canonical source
 

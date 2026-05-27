@@ -1,6 +1,7 @@
 import { getUsageReport, DEFAULT_HOST_NAME } from "./usage-client.js";
 import { fetchClaudeQuota } from "./claude-web.js";
 import { fetchDeepSeekUsage } from "./deepseek-usage.js";
+import { fetchCursorUsage } from "./cursor-web.js";
 
 const PROVIDER_NAMES = {
   "claude-code": "Claude Code",
@@ -46,6 +47,8 @@ function formatReset(iso) {
 
 let report = null;
 let currentWindow = "7d";
+// provider → login URL, for web sources that report the user isn't signed in.
+let loginPrompts = {};
 const PREVIEW_TEXT = "Preview data — the local host isn't connected yet. See the README to install it.";
 
 async function getSettings() {
@@ -92,13 +95,20 @@ function balanceRowsHtml(records) {
     .join("");
 }
 
+function loginPromptHtml(provider) {
+  const url = loginPrompts[provider];
+  if (!url) return "";
+  return `<div class="login-prompt">Not signed in. <a class="login-link" href="#" data-url="${esc(url)}">Log in to ${esc(PROVIDER_NAMES[provider] || provider)} →</a></div>`;
+}
+
 function renderQuota() {
   const section = document.getElementById("quota-section");
   const box = document.getElementById("quota");
   const items = (report?.records || []).filter(
     (r) => r.metricType === "quota_percent" || r.metricType === "balance",
   );
-  if (!items.length) {
+  const promptProviders = Object.keys(loginPrompts);
+  if (!items.length && !promptProviders.length) {
     section.classList.add("hidden");
     return;
   }
@@ -109,15 +119,17 @@ function renderQuota() {
   const html = PROVIDER_ORDER.map((p) => {
     const pctRecs = items.filter((q) => q.provider === p && q.metricType === "quota_percent");
     const balRecs = items.filter((q) => q.provider === p && q.metricType === "balance");
-    if (!pctRecs.length && !balRecs.length && !hasProviderData(p)) return "";
+    const needsLogin = !!loginPrompts[p];
+    if (!pctRecs.length && !balRecs.length && !hasProviderData(p) && !needsLogin) return "";
     const all = [...pctRecs, ...balRecs];
     const plan = all.find((q) => q.planType)?.planType;
     const note = distinctWarnings(all)[0];
+    const login = loginPromptHtml(p);
     const quotaHtml = pctRecs.length
       ? quotaRowsHtml(pctRecs)
-      : hasProviderData(p)
+      : login || (hasProviderData(p)
         ? '<div class="quota-row"><span class="label-empty">quota data unavailable</span></div>'
-        : "";
+        : "");
     return `<div class="quota-group">
       <div class="quota-provider">${esc(PROVIDER_NAMES[p] || p)}${plan ? `<span class="plan">${esc(plan)}</span>` : ""}</div>
       ${quotaHtml}
@@ -136,7 +148,6 @@ function renderProviderCard(provider, records) {
   const measured = records.filter((r) => r.metricType === "measured_tokens");
   const reqCounted = records.filter((r) => r.metricType === "request_count");
   const costs = records.filter((r) => r.metricType === "estimated_cost");
-  const prompts = records.filter((r) => r.metricType === "login_prompt");
 
   let rows = "";
   for (const m of measured) {
@@ -160,11 +171,9 @@ function renderProviderCard(provider, records) {
     ? `<div class="warn-note" title="${warns.map(esc).join("&#10;")}">⚠ ${warns.length} note${warns.length > 1 ? "s" : ""}</div>`
     : "";
 
-  const loginPrompt = prompts.length
-    ? `<div class="model-row login-prompt">${esc(prompts[0].warnings?.[0] || "Login required")}</div>`
-    : "";
+  const login = loginPromptHtml(provider);
 
-  return `<section class="card"><h2>${esc(PROVIDER_NAMES[provider] || provider)}<span class="provider-meta">${meta}</span></h2>${rows || loginPrompt || '<div class="model-name">no data</div>'}${warnHtml}</section>`;
+  return `<section class="card"><h2>${esc(PROVIDER_NAMES[provider] || provider)}<span class="provider-meta">${meta}</span></h2>${rows || login || '<div class="model-name">no data</div>'}${warnHtml}</section>`;
 }
 
 function render() {
@@ -192,7 +201,9 @@ function render() {
   const tokenRecords = report.records.filter(
     (r) =>
       r.window === currentWindow &&
-      (r.metricType === "measured_tokens" || r.metricType === "estimated_cost" || r.metricType === "request_count" || r.metricType === "login_prompt"),
+      (r.metricType === "measured_tokens" ||
+        r.metricType === "estimated_cost" ||
+        r.metricType === "request_count"),
   );
 
   const html = PROVIDER_ORDER.map((p) => {
@@ -229,22 +240,32 @@ async function load() {
 
   // Web-sourced data (not from local logs / native host). Skipped in sample/preview mode
   // so we don't mix mock + live data. Each fetch is independent and merges as it resolves.
+  // Each connector returns { status, records, loginUrl }: needs_login surfaces a login
+  // prompt in the popup (task #6) instead of silently showing nothing.
   if (report._source !== "sample") {
-    try {
-      const claudeQuota = await fetchClaudeQuota(); // Claude account quota %
-      if (claudeQuota.length) {
-        report.records = [...report.records, ...claudeQuota];
-        render();
-      }
-    } catch {}
-    try {
-      const deepseekUsage = await fetchDeepSeekUsage(); // DeepSeek token usage (hidden tab)
-      if (deepseekUsage.length) {
-        report.records = [...report.records, ...deepseekUsage];
-        render();
-      }
-    } catch {}
+    loginPrompts = {};
+    await applyWebResult("claude-code", () => fetchClaudeQuota()); // Claude account quota %
+    await applyWebResult("cursor", () => fetchCursorUsage()); // Cursor plan usage %
+    await applyWebResult("deepseek", () => fetchDeepSeekUsage()); // DeepSeek tokens (hidden tab)
   }
+}
+
+// Run one web connector, merge its records, and track login state. Failures are swallowed
+// so one broken source never blocks the others.
+async function applyWebResult(provider, fetcher) {
+  let result;
+  try {
+    result = await fetcher();
+  } catch {
+    return;
+  }
+  if (!result) return;
+  if (result.status === "needs_login") {
+    if (result.loginUrl) loginPrompts[provider] = result.loginUrl;
+  } else if (result.records?.length) {
+    report.records = [...report.records, ...result.records];
+  }
+  render();
 }
 
 document.getElementById("windows").addEventListener("click", (e) => {
@@ -256,6 +277,19 @@ document.getElementById("windows").addEventListener("click", (e) => {
   }
   try { chrome.storage.local.set({ window: currentWindow }); } catch {}
   render();
+});
+
+// Login prompts (task #6): open the provider's login page in a new tab.
+document.body.addEventListener("click", (e) => {
+  const link = e.target.closest(".login-link[data-url]");
+  if (!link) return;
+  e.preventDefault();
+  const url = link.dataset.url;
+  try {
+    chrome.tabs.create({ url });
+  } catch {
+    window.open(url, "_blank");
+  }
 });
 
 document.getElementById("refresh").addEventListener("click", load);

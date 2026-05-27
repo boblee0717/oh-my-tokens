@@ -1,6 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mapUsage } from "../claude-web.js";
+import { mapUsage, fetchClaudeQuota } from "../claude-web.js";
+
+// Minimal Response-like stub for the injectable fetch.
+function res(status, body) {
+  return { ok: status >= 200 && status < 300, status, json: async () => body };
+}
+// Builds a fake fetch that maps a path substring → response.
+function fakeFetch(routes) {
+  return async (url) => {
+    for (const [needle, r] of routes) if (url.includes(needle)) return r;
+    return res(404, {});
+  };
+}
 
 // Real shape captured from claude.ai/api/organizations/{uuid}/usage (2026-05-26).
 const sample = {
@@ -47,4 +59,34 @@ test("bad input yields []", () => {
   assert.deepEqual(mapUsage(undefined), []);
   assert.deepEqual(mapUsage({}), []);
   assert.deepEqual(mapUsage({ five_hour: null }), []);
+});
+
+test("fetchClaudeQuota: 401 on account → needs_login with loginUrl", async () => {
+  const f = fakeFetch([["/api/account", res(401, {})]]);
+  const out = await fetchClaudeQuota(f);
+  assert.equal(out.status, "needs_login");
+  assert.match(out.loginUrl, /claude\.ai/);
+  assert.deepEqual(out.records, []);
+});
+
+test("fetchClaudeQuota: account with no org → needs_login", async () => {
+  const f = fakeFetch([["/api/account", res(200, { memberships: [] })]]);
+  const out = await fetchClaudeQuota(f);
+  assert.equal(out.status, "needs_login");
+});
+
+test("fetchClaudeQuota: success → ok with quota records", async () => {
+  const f = fakeFetch([
+    ["/api/account", res(200, { memberships: [{ organization: { uuid: "org-1" } }] })],
+    ["/usage", res(200, sample)],
+  ]);
+  const out = await fetchClaudeQuota(f);
+  assert.equal(out.status, "ok");
+  assert.equal(out.records.length, 3);
+});
+
+test("fetchClaudeQuota: 500 → error (not needs_login)", async () => {
+  const f = fakeFetch([["/api/account", res(500, {})]]);
+  const out = await fetchClaudeQuota(f);
+  assert.equal(out.status, "error");
 });

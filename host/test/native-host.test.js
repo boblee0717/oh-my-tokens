@@ -58,9 +58,7 @@ test("native host writes one framed response and exits cleanly", async () => {
 
     const report = JSON.parse(raw.subarray(4).toString("utf8"));
     assert.equal(report.hostVersion, "0.0.0-m5");
-    const dataRecs = report.records.filter((r) => r.metricType !== "login_prompt");
-    assert.deepEqual(dataRecs, []);
-    assert.ok(report.records.some((r) => r.metricType === "login_prompt"), "should prompt login when no usage data");
+    assert.deepEqual(report.records, []);
     assert.deepEqual(report.errors, []);
   } finally {
     clearTimeout(timeout);

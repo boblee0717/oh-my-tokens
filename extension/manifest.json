@@ -12,7 +12,8 @@
   ],
   "host_permissions": [
     "https://claude.ai/*",
-    "https://platform.deepseek.com/*"
+    "https://platform.deepseek.com/*",
+    "https://cursor.com/*"
   ],
   "action": {
     "default_title": "oh-my-tokens",

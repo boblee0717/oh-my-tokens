@@ -35,7 +35,9 @@ export async function parseCursorUsage(opts = {}) {
   const windows = opts.windows ?? ["today", "7d", "30d"];
   const dbPath = opts.dbPath ?? DEFAULT_DB;
 
-  const rows = sql(dbPath, "SELECT model, source, createdAt FROM ai_code_hashes");
+  // One AI request produces many code-hash rows (one per file/snippet), so requests are
+  // counted as DISTINCT requestId — counting rows over-counts by ~100x.
+  const rows = sql(dbPath, "SELECT model, source, requestId, createdAt FROM ai_code_hashes");
   if (!rows || !rows.length) return [];
 
   const records = [];
@@ -46,17 +48,18 @@ export async function parseCursorUsage(opts = {}) {
     const cutoff = windowCutoff(window, now);
     const byModel = new Map();
     for (const r of rows) {
-      if (r.createdAt < cutoff) continue;
+      if (r.createdAt < cutoff || !r.requestId) continue;
       const model = r.model || "unknown";
-      const arr = byModel.get(model) ?? [];
-      arr.push(r);
-      byModel.set(model, arr);
+      const acc = byModel.get(model) ?? { all: new Set(), cli: new Set(), composer: new Set() };
+      acc.all.add(r.requestId);
+      if (r.source === "cli") acc.cli.add(r.requestId);
+      else if (r.source === "composer") acc.composer.add(r.requestId);
+      byModel.set(model, acc);
     }
-    for (const [model, group] of byModel) {
-      const cli = group.filter((r) => r.source === "cli").length;
-      const composer = group.filter((r) => r.source === "composer").length;
+    for (const [model, acc] of byModel) {
+      if (!acc.all.size) continue;
       records.push({
-        id: `cursor:${model}:${window}:measured_tokens`,
+        id: `cursor:${model}:${window}:request_count`,
         provider: "cursor",
         model,
         metricType: "request_count",
@@ -65,7 +68,7 @@ export async function parseCursorUsage(opts = {}) {
         inputTokens: 0,
         outputTokens: 0,
         cacheTokens: 0,
-        requests: group.length,
+        requests: acc.all.size,
         costUSD: null,
         balance: null,
         currency: null,
@@ -73,7 +76,7 @@ export async function parseCursorUsage(opts = {}) {
         confidence: "high",
         warnings: [
           "Cursor tracks request counts, not token counts; fields below show requests",
-          `CLI: ${cli}  Composer: ${composer}`,
+          `CLI: ${acc.cli.size}  Composer: ${acc.composer.size}`,
         ],
       });
     }

@@ -43,11 +43,16 @@ function fetchUsageInPage(month, year) {
   } catch {
     token = null;
   }
-  const headers = { Accept: "application/json" };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  return fetch(`/api/v0/usage/amount?month=${month}&year=${year}`, { headers })
-    .then((r) => (r.ok ? r.json() : null))
-    .catch(() => null);
+  if (!token) return Promise.resolve({ needsLogin: true });
+  return fetch(`/api/v0/usage/amount?month=${month}&year=${year}`, {
+    headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+  })
+    .then((r) => {
+      if (r.status === 401 || r.status === 403) return { needsLogin: true };
+      if (!r.ok) return { error: true };
+      return r.json().then((json) => ({ json }));
+    })
+    .catch(() => ({ error: true }));
 }
 
 function ymd(d) {
@@ -120,9 +125,13 @@ export function mapDeepSeekUsage(json, now = new Date()) {
   return records;
 }
 
+export const DEEPSEEK_LOGIN_URL = USAGE_PAGE;
+
+// Returns { status, records, loginUrl } — same contract as fetchClaudeQuota.
+// "needs_login" when the page has no web token or the API rejects it (401/403).
 export async function fetchDeepSeekUsage(now = new Date()) {
   if (typeof chrome === "undefined" || !chrome.tabs?.create || !chrome.scripting?.executeScript) {
-    return [];
+    return { status: "error", records: [] };
   }
   let tabId;
   try {
@@ -134,9 +143,14 @@ export async function fetchDeepSeekUsage(now = new Date()) {
       func: fetchUsageInPage,
       args: [now.getMonth() + 1, now.getFullYear()],
     });
-    return mapDeepSeekUsage(res?.result, now);
+    const out = res?.result;
+    if (out?.needsLogin) {
+      return { status: "needs_login", records: [], loginUrl: DEEPSEEK_LOGIN_URL };
+    }
+    if (!out || out.error) return { status: "error", records: [] };
+    return { status: "ok", records: mapDeepSeekUsage(out.json, now) };
   } catch {
-    return [];
+    return { status: "error", records: [] };
   } finally {
     if (tabId != null) {
       try {
