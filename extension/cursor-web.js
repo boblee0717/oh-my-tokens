@@ -58,7 +58,7 @@ function quotaRecord({ label, usedPercent, resetsAt, planType }) {
     costUSD: null,
     balance: null,
     currency: null,
-    usedPercent: Math.max(0, Math.min(100, Number(usedPercent) || 0)),
+    usedPercent: Math.round(Math.max(0, Math.min(100, Number(usedPercent) || 0)) * 10) / 10,
     windowLabel: label,
     resetsAt: resetsAt || undefined,
     planType: planType || "Cursor",

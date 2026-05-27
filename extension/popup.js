@@ -11,7 +11,10 @@ const PROVIDER_NAMES = {
 };
 const PROVIDER_ORDER = ["claude-code", "codex", "deepseek", "cursor"];
 
-const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
+const _compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
+function fmtCompact(n) {
+  return _compact.format(n).replace(/\.0(?=[KMBTkmt])/, "");
+}
 
 // Escape anything interpolated into innerHTML; model names / currencies / warnings
 // originate from logs or external APIs, so treat them as untrusted.
@@ -20,6 +23,13 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ESC[c]);
 
 function money(n, ccy) {
   try {
+    const abs = Math.abs(n);
+    if (abs > 0 && abs < 0.01) {
+      return new Intl.NumberFormat("en", {
+        style: "currency", currency: ccy || "USD",
+        minimumFractionDigits: 4, maximumFractionDigits: 4,
+      }).format(n);
+    }
     return new Intl.NumberFormat("en", { style: "currency", currency: ccy || "USD" }).format(n);
   } catch {
     return `${n} ${ccy || ""}`.trim();
@@ -71,15 +81,16 @@ function metric(label, value, cls = "") {
 function quotaRowsHtml(records) {
   return records
     .map((q) => {
-      const pct = Math.max(0, Math.min(100, Number(q.usedPercent) || 0));
-      const cls = pct >= 80 ? "high" : pct >= 50 ? "warn" : "";
+      const pctNum = Math.max(0, Math.min(100, Number(q.usedPercent) || 0));
+      const pctStr = Number.isInteger(pctNum) ? String(pctNum) : pctNum.toFixed(1);
+      const cls = pctNum >= 80 ? "high" : pctNum >= 50 ? "warn" : "";
       const reset = formatReset(q.resetsAt);
       return `<div class="quota-row">
         <div class="top">
           <span class="label">${esc(q.windowLabel || "")}</span>
-          <span class="pct">${pct}%</span>
+          <span class="pct">${pctStr}%</span>
         </div>
-        <div class="bar ${cls}"><span style="width:${pct}%"></span></div>
+        <div class="bar ${cls}"><span style="width:${pctNum}%"></span></div>
         ${reset ? `<div class="reset">${esc(reset)}</div>` : ""}
       </div>`;
     })
@@ -156,19 +167,19 @@ function renderProviderCard(provider, records) {
   for (const m of measured) {
     const cost = costs.find((c) => c.model === m.model);
     const parts = [
-      metric("in", compact.format(m.inputTokens)),
-      metric("out", compact.format(m.outputTokens)),
-      metric("cache", compact.format(m.cacheTokens)),
+      metric("in", fmtCompact(m.inputTokens)),
+      metric("out", fmtCompact(m.outputTokens)),
+      metric("cache", fmtCompact(m.cacheTokens)),
     ];
     if (cost) parts.push(metric("cost", esc(money(cost.costUSD, cost.currency)), "cost"));
     rows += `<div class="model-row"><div class="model-name">${esc(m.model)}</div><div class="metrics">${parts.join("")}</div></div>`;
   }
   for (const m of reqCounted) {
-    rows += `<div class="model-row"><div class="model-name">${esc(m.model)}</div><div class="metrics">${metric("req", compact.format(m.requests))}</div></div>`;
+    rows += `<div class="model-row"><div class="model-name">${esc(m.model)}</div><div class="metrics">${metric("req", fmtCompact(m.requests))}</div></div>`;
   }
 
   const reqTotal = measured.reduce((s, r) => s + (r.requests || 0), 0) + reqCounted.reduce((s, r) => s + (r.requests || 0), 0);
-  const meta = measured.length ? `${compact.format(reqTotal)} req` : "";
+  const meta = measured.length ? `${fmtCompact(reqTotal)} req` : "";
   const warns = distinctWarnings(records);
   const warnHtml = warns.length
     ? `<div class="warn-note" title="${warns.map(esc).join("&#10;")}">⚠ ${warns.length} note${warns.length > 1 ? "s" : ""}</div>`
