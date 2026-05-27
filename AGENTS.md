@@ -17,17 +17,29 @@ hand the diff/patch or a precise description to claudeOpus, who integrates and p
   via `/usr/bin/sqlite3`. One AI request fans out to many code-hash rows, so requests are counted as
   **DISTINCT `requestId`** (counting rows over-counted ~100x). `metricType: "request_count"`, zero tokens,
   warned as "request counts, not tokens" + a CLI/Composer split. Cursor exposes no local token data.
-- **Cursor — web connector** (`extension/cursor-web.js`): primary usage signal. Fetches
-  `GET cursor.com/api/usage-summary` with `credentials:"include"` (host_permission `https://cursor.com/*`),
-  maps plan usage % → `quota_percent`. Field names are reverse-engineered (unverified live), so extraction
-  is tolerant and degrades to `[]`. Never reads/stores the WorkOS cookie.
+- **Cursor — web connector** (`extension/cursor-web.js`): the PRIMARY source (Bob: "cursor 全部从 api").
+  Two endpoints via `credentials:"include"` (host_permission `https://cursor.com/*`, never reads/stores the
+  WorkOS cookie):
+  - `GET /api/usage-summary` → plan usage % (`quota_percent`: Plan + API %, billing cycle, membershipType).
+  - `POST /api/dashboard/get-filtered-usage-events` (body `{startDate,endDate,page,pageSize}`, bounded to
+    10 pages × 1000) → per-model `measured_tokens` + `estimated_cost` (tokenUsage.{input,output,cacheWrite+
+    cacheRead}, totalCents/100). Bucketed into today/7d/30d by event timestamp.
+  - Field names are reverse-engineered + cross-checked vs the Cursor app's proto names (`GetFilteredUsageEvents`,
+    `GetAggregatedUsageEvents`, `GetMonthlyInvoice`) — NOT a captured live response (all automated capture
+    failed: Chrome-skill down, computer-use `cgWindowNotFound`, AppleScript blocked, curl→Cloudflare). So
+    extraction is tolerant of camel/snake_case + `usageEventsDisplay/usage_events_display` + `tokenUsage/
+    token_usage`, degrades to `[]`, and the quota result never fails on an events error. **Needs Bob's
+    logged-in reload to confirm the real field names** (verified live only: unauth → 401 `not_authenticated`).
+  - When the web connector returns token data, the popup DROPS the local parser's `request_count` records
+    for Cursor (web supersedes the local fallback).
+- **Cursor — local parser** (`host/parsers/cursor.js`): now a FALLBACK only — shows per-model request counts
+  (DISTINCT requestId) when the web API is unavailable / not signed in.
 - **Login prompts (task #6) — web-auth driven, NOT native host.** The three web connectors
   (`claude-web.js`, `deepseek-usage.js`, `cursor-web.js`) return `{ status: "ok"|"needs_login"|"error",
   records, loginUrl }`. `needs_login` (401/403, no org, no token, or `not_authenticated` body) → popup shows a
   clickable "Log in to X →" link. We deliberately do **not** infer login state from the native host
   ("no local logs" ≠ "not logged in" — would misfire). An earlier native-host `login_prompt` approach
   (in `9922acd`) was removed for this reason.
-- Local parser is a supplement (request counts in the Usage section); the web connector is the quota source.
 
 ## DEPLOY NOTE: keep one canonical source
 
