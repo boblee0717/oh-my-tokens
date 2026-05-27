@@ -11,6 +11,15 @@ machine share the same `boblee0717` SSH identity, so GitHub can't enforce it —
 hand the diff/patch or a precise description to claudeOpus, who integrates and pushes.
 (Rationale: avoids the repeated branch/master collisions seen 2026-05-26 — logo, manifest key.)
 
+## 2026-05-27: Cursor integration & Claude Code login prompt
+
+- **Cursor parser** (`host/parsers/cursor.js`): reads `~/.cursor/ai-tracking/ai-code-tracking.db` via
+  `/usr/bin/sqlite3`. Counts AI requests per model per time window. No token data available from Cursor.
+  Reports as `metricType: "request_count"` with requests count, zero tokens.
+- **Claude Code login prompt**: when `~/.claude/projects/` has no `.jsonl` log files, the parser emits
+  `login_prompt` records. Popup UI shows a yellow inline prompt: "Run \`claude login\` and start a conversation."
+- **Both committed in `9922acd`** (claudeOpus). 27 tests passing.
+
 ## DEPLOY NOTE: keep one canonical source
 
 The native-messaging host runs whatever `run-host.sh` path the installed
