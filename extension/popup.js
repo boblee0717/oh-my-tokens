@@ -125,9 +125,12 @@ function renderQuota() {
     const plan = all.find((q) => q.planType)?.planType;
     const note = distinctWarnings(all)[0];
     const login = loginPromptHtml(p);
+    // "quota data unavailable" is only meaningful for a provider that *should* have a quota %
+    // but doesn't. Balance-only providers (e.g. DeepSeek is prepaid, no % concept) show their
+    // balance below instead — don't label them as unavailable.
     const quotaHtml = pctRecs.length
       ? quotaRowsHtml(pctRecs)
-      : login || (hasProviderData(p)
+      : login || (hasProviderData(p) && !balRecs.length
         ? '<div class="quota-row"><span class="label-empty">quota data unavailable</span></div>'
         : "");
     return `<div class="quota-group">
