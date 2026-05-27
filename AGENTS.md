@@ -21,6 +21,18 @@ If these point at stale/separate worktrees, merged fixes won't appear (this caus
 After a fix lands, re-run `host/install-macos.sh` from there and reload the extension from
 that same `extension/` folder (fixed ID `obmkhlamcmbmacadoolbfaagmojdobah`).
 
+## 2026-05-26: Node version — "Native host has exited"
+
+- Cause: `run-host.sh` ran `node native-host.ts` — running multi-file TypeScript needs
+  Node ≈23.6+ (we dev on 26). On common Node 18/20/22 LTS the host crashed on launch →
+  "Native host has exited" (a friend's install hit this).
+- **Fix: the host runtime is plain JavaScript (ESM)** — `host/*.js` + `host/parsers/*.js`;
+  `run-host.sh` does `exec node native-host.js`. Runs on **Node ≥ 18**, no build, no deps,
+  no TS flags. (`host/*.ts` runtime files are now redundant dead weight — pending cleanup;
+  `shared/schema.ts` stays as a types-only reference. Tests under `host/test/*.ts` are dev-only.)
+- Hardening: `install.sh` preflights Node ≥ 18; `run-host.sh` appends host stderr to
+  `~/.oh-my-tokens/host.log` so a failed launch is diagnosable.
+
 ## 2026-05-26: Private key accidentally committed in manifest `key` field
 
 - commit `2610be7` (openDSFlashV4) added a PKCS#8 **private key** to `manifest.json`'s `"key"` field, instead of a public key.

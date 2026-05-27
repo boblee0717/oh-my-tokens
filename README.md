@@ -34,14 +34,14 @@ The Extension ID is fixed: `obmkhlamcmbmacadoolbfaagmojdobah`.
 
 ### Prerequisites
 
-- macOS, Chrome, Node ≥ 22
+- macOS, Chrome, Node ≥ 18
 - Claude Code and/or Codex used on this machine (logs in `~/.claude/` / `~/.codex/`)
 
 ### Verify
 
 Open the popup — you should see live usage. If only the bundled **sample** data shows, the
 host isn't connected: confirm the extension was reloaded, and run
-`node /tmp/oh-my-tokens/host/index.ts` to check the host report directly.
+`node /tmp/oh-my-tokens/host/index.js` to check the host report directly.
 
 ### DeepSeek API key (optional)
 

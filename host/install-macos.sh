@@ -28,10 +28,12 @@ INSTALL_SHARED_DIR="${INSTALL_ROOT}/shared"
 # the arbitrary clone location (for example ~/Documents, which can be TCC-gated).
 rm -rf "${INSTALL_ROOT}"
 mkdir -p "${INSTALL_HOST_DIR}" "${INSTALL_SHARED_DIR}"
-cp "${DIR}"/*.ts "${INSTALL_HOST_DIR}/"
+cp "${DIR}"/*.js "${INSTALL_HOST_DIR}/"
+cp "${DIR}/package.json" "${INSTALL_HOST_DIR}/"
 cp "${DIR}/run-host.sh" "${INSTALL_HOST_DIR}/"
 cp -R "${DIR}/parsers" "${INSTALL_HOST_DIR}/"
-cp "${REPO_ROOT}/shared"/*.ts "${INSTALL_SHARED_DIR}/"
+find "${INSTALL_HOST_DIR}/parsers" -type f ! -name '*.js' -delete
+cp "${REPO_ROOT}/shared"/*.js "${INSTALL_SHARED_DIR}/"
 chmod +x "${INSTALL_HOST_DIR}/run-host.sh"
 HOST_PATH="${INSTALL_HOST_DIR}/run-host.sh"
 

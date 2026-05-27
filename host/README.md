@@ -9,23 +9,22 @@ JSON to the extension. Runs on demand — no daemon, no open port.
 
 ## Requirements
 
-Node ≥ 22 (TypeScript runs directly; this repo is developed on Node 26). No build
-step and no dependencies.
+Node ≥ 18. The host is plain JavaScript (ESM) — no build, no deps, no TS runtime.
 
 ## Run
 
 ```bash
 # Print a UsageReport for Claude Code + Codex + DeepSeek
-node host/index.ts
+node host/index.js
 
 # DeepSeek balance requires an API key in the environment
-DEEPSEEK_API_KEY=sk-... node host/index.ts
+DEEPSEEK_API_KEY=sk-... node host/index.js
 ```
 
 ## Test
 
 ```bash
-node --test host/test/claude.test.ts host/test/codex.test.ts host/test/deepseek.test.ts
+node --test host/test/claude.test.js host/test/codex.test.js host/test/deepseek.test.js host/test/native-host.test.js
 ```
 
 ## Install as a Chrome Native Messaging host (macOS)
@@ -53,12 +52,12 @@ The key stays on your machine (never synced). Resolution order:
    { "deepseekApiKey": "sk-..." }
    ```
    See `host/config.example.json`. Keeps the key out of the browser entirely.
-3. **`DEEPSEEK_API_KEY`** env var — handy for the CLI (`DEEPSEEK_API_KEY=sk-... node host/index.ts`);
+3. **`DEEPSEEK_API_KEY`** env var — handy for the CLI (`DEEPSEEK_API_KEY=sk-... node host/index.js`);
    note GUI Chrome on macOS does not inherit your shell env, so this rarely works for the popup.
 
 `install-macos.sh` copies the host runtime to `~/.oh-my-tokens/native-host/` and writes
 `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.ohmytokens.host.json`
-pointing at that installed `run-host.sh` (which resolves `node` and runs `native-host.ts`).
+pointing at that installed `run-host.sh` (which resolves `node` and runs `native-host.js`).
 This avoids pointing Chrome at an arbitrary clone path such as `~/Documents`, where macOS
 privacy controls can prevent Chrome's child process from opening the script. The host
 speaks Chrome's length-prefixed stdio protocol: it reads one request and replies with the

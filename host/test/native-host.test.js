@@ -7,9 +7,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const hostPath = join(repoRoot, "host", "native-host.ts");
+const hostPath = join(repoRoot, "host", "native-host.js");
 
-function frame(message: unknown): Buffer {
+function frame(message) {
   const json = Buffer.from(JSON.stringify(message), "utf8");
   const header = Buffer.alloc(4);
   header.writeUInt32LE(json.length, 0);
@@ -29,20 +29,20 @@ test("native host writes one framed response and exits cleanly", async () => {
     stdio: ["pipe", "pipe", "pipe"],
   });
 
-  const stdout: Buffer[] = [];
-  const stderr: Buffer[] = [];
+  const stdout = [];
+  const stderr = [];
   child.stdout.on("data", (chunk) => stdout.push(chunk));
   child.stderr.on("data", (chunk) => stderr.push(chunk));
 
   child.stdin.end(frame({ type: "getUsage" }));
 
-  let timeout: ReturnType<typeof setTimeout> | undefined;
+  let timeout;
   try {
     const exit = await Promise.race([
-      new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
+      new Promise((resolve) => {
         child.on("exit", (code, signal) => resolve({ code, signal }));
       }),
-      new Promise<never>((_, reject) => {
+      new Promise((_, reject) => {
         timeout = setTimeout(() => reject(new Error("native host did not exit")), 5000);
       }),
     ]);
