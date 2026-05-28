@@ -192,7 +192,19 @@ function renderProviderCard(provider, records) {
   return `<section class="card"><h2>${esc(PROVIDER_NAMES[provider] || provider)}<span class="provider-meta">${meta}</span></h2>${rows || login || '<div class="model-name">no data</div>'}${warnHtml}</section>`;
 }
 
+// Inline provider toggles (also editable in Options). A filled pill = shown, a muted
+// pill = hidden; clicking flips the provider and persists to the same `enabledProviders`.
+function renderProviderFilter() {
+  const bar = document.getElementById("provider-filter");
+  if (!bar) return;
+  bar.innerHTML = ALL_PROVIDERS.map((p) => {
+    const on = activeProviders.includes(p);
+    return `<button type="button" class="provider-pill${on ? "" : " off"}" data-provider="${p}" aria-pressed="${on}" title="${on ? "Click to hide" : "Click to show"}">${esc(PROVIDER_NAMES[p] || p)}</button>`;
+  }).join("");
+}
+
 function render() {
+  renderProviderFilter();
   const cards = document.getElementById("cards");
   const status = document.getElementById("status");
   const banner = document.getElementById("preview-banner");
@@ -318,6 +330,27 @@ document.body.addEventListener("click", (e) => {
     chrome.tabs.create({ url });
   } catch {
     window.open(url, "_blank");
+  }
+});
+
+// Toggle a provider directly from the popup. Persists to the shared `enabledProviders`
+// so Options stays in sync. Re-enabling a web-sourced provider re-fetches its data
+// (the initial load skipped it); disabling just hides what's already loaded.
+document.getElementById("provider-filter").addEventListener("click", async (e) => {
+  const btn = e.target.closest(".provider-pill[data-provider]");
+  if (!btn) return;
+  const p = btn.dataset.provider;
+  const enabled = new Set(activeProviders);
+  const enabling = !enabled.has(p);
+  if (enabling) enabled.add(p);
+  else enabled.delete(p);
+  activeProviders = ALL_PROVIDERS.filter((x) => enabled.has(x));
+  if (!enabling) delete loginPrompts[p];
+  try { await chrome.storage.local.set({ enabledProviders: activeProviders }); } catch {}
+  render();
+  if (enabling && report && report._source !== "sample") {
+    const fetchers = { "claude-code": fetchClaudeQuota, cursor: fetchCursorUsage, deepseek: fetchDeepSeekUsage };
+    if (fetchers[p]) await applyWebResult(p, () => fetchers[p]());
   }
 });
 

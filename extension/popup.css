@@ -74,6 +74,16 @@ section { padding: 0 14px; }
 .quota-note { color: var(--faint); font-size: 10px; margin-top: 6px; }
 .label-empty { color: var(--faint); font-size: 11px; font-style: italic; }
 
+/* Provider filter pills (inline show/hide, mirrors Options) */
+.provider-filter { display: flex; flex-wrap: wrap; gap: 5px; padding: 4px 14px 2px; }
+.provider-pill {
+  font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--accent); background: rgba(47, 111, 235, 0.1); color: var(--accent);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.provider-pill.off { border-color: var(--border); background: transparent; color: var(--faint); }
+.provider-pill.off:hover { border-color: var(--faint); color: var(--muted); }
+
 /* Window toggle */
 .windows { display: flex; gap: 4px; margin-left: auto; }
 .windows button {
