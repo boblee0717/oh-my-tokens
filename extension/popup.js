@@ -9,7 +9,8 @@ const PROVIDER_NAMES = {
   deepseek: "DeepSeek",
   cursor: "Cursor",
 };
-const PROVIDER_ORDER = ["claude-code", "codex", "deepseek", "cursor"];
+const ALL_PROVIDERS = ["claude-code", "codex", "deepseek", "cursor"];
+let activeProviders = ALL_PROVIDERS;
 
 const _compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 function fmtCompact(n) {
@@ -63,14 +64,15 @@ const PREVIEW_TEXT = "Preview data — the local host isn't connected yet. See t
 
 async function getSettings() {
   try {
-    const s = await chrome.storage.local.get(["hostName", "window", "deepseekApiKey"]);
+    const s = await chrome.storage.local.get(["hostName", "window", "deepseekApiKey", "enabledProviders"]);
     return {
       hostName: s.hostName || DEFAULT_HOST_NAME,
       window: s.window || "7d",
       deepseekApiKey: s.deepseekApiKey || "",
+      enabledProviders: Array.isArray(s.enabledProviders) ? s.enabledProviders : ALL_PROVIDERS,
     };
   } catch {
-    return { hostName: DEFAULT_HOST_NAME, window: "7d", deepseekApiKey: "" };
+    return { hostName: DEFAULT_HOST_NAME, window: "7d", deepseekApiKey: "", enabledProviders: ALL_PROVIDERS };
   }
 }
 
@@ -127,7 +129,7 @@ function renderQuota() {
 
   const hasProviderData = (p) => (report?.records || []).some((r) => r.provider === p);
 
-  const html = PROVIDER_ORDER.map((p) => {
+  const html = activeProviders.map((p) => {
     const pctRecs = items.filter((q) => q.provider === p && q.metricType === "quota_percent");
     const balRecs = items.filter((q) => q.provider === p && q.metricType === "balance");
     const needsLogin = !!loginPrompts[p];
@@ -220,11 +222,15 @@ function render() {
         r.metricType === "request_count"),
   );
 
-  const html = PROVIDER_ORDER.map((p) => {
+  const html = activeProviders.map((p) => {
     const recs = tokenRecords.filter((r) => r.provider === p);
     return recs.length ? renderProviderCard(p, recs) : "";
   }).join("");
-  cards.innerHTML = html || '<div class="empty">No usage in this window.</div>';
+  if (!activeProviders.length) {
+    cards.innerHTML = '<div class="empty">No providers enabled. <a id="open-options-inline" href="#">Open Options</a> to enable the ones you use.</div>';
+  } else {
+    cards.innerHTML = html || '<div class="empty">No usage in this window.</div>';
+  }
 
   const when = report.generatedAt ? new Date(report.generatedAt).toLocaleString() : "";
   status.textContent = `${report._source === "sample" ? "sample" : "updated"} ${when}`;
@@ -240,6 +246,7 @@ async function load() {
   });
 
   const settings = await getSettings();
+  activeProviders = ALL_PROVIDERS.filter((p) => settings.enabledProviders.includes(p));
   currentWindow = settings.window;
   for (const b of document.querySelectorAll(".windows button")) {
     b.classList.toggle("active", b.dataset.window === currentWindow);
@@ -256,11 +263,12 @@ async function load() {
   // so we don't mix mock + live data. Each fetch is independent and merges as it resolves.
   // Each connector returns { status, records, loginUrl }: needs_login surfaces a login
   // prompt in the popup (task #6) instead of silently showing nothing.
+  // Only fetches for providers the user has enabled.
   if (report._source !== "sample") {
     loginPrompts = {};
-    await applyWebResult("claude-code", () => fetchClaudeQuota()); // Claude account quota %
-    await applyWebResult("cursor", () => fetchCursorUsage()); // Cursor plan usage %
-    await applyWebResult("deepseek", () => fetchDeepSeekUsage()); // DeepSeek tokens (hidden tab)
+    if (activeProviders.includes("claude-code")) await applyWebResult("claude-code", () => fetchClaudeQuota());
+    if (activeProviders.includes("cursor")) await applyWebResult("cursor", () => fetchCursorUsage());
+    if (activeProviders.includes("deepseek")) await applyWebResult("deepseek", () => fetchDeepSeekUsage());
   }
 }
 
@@ -315,6 +323,12 @@ document.body.addEventListener("click", (e) => {
 
 document.getElementById("refresh").addEventListener("click", load);
 document.getElementById("open-options").addEventListener("click", (e) => {
+  e.preventDefault();
+  try { chrome.runtime.openOptionsPage(); } catch {}
+});
+document.body.addEventListener("click", (e) => {
+  const link = e.target.closest("#open-options-inline");
+  if (!link) return;
   e.preventDefault();
   try { chrome.runtime.openOptionsPage(); } catch {}
 });

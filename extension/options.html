@@ -23,7 +23,15 @@
       your balance. Prefer it out of the browser entirely? Leave blank and put it in
       <code>~/.oh-my-tokens/config.json</code> instead.
     </p>
-    <p class="hint">Optional — leave blank if you don't use DeepSeek. Nothing else needs configuring.</p>
+
+    <label>Displayed providers</label>
+    <p class="hint">Uncheck providers you don't use to hide them from the popup.</p>
+    <div class="toggle-group">
+      <label class="toggle-row"><input type="checkbox" data-provider="claude-code" checked /> Claude Code</label>
+      <label class="toggle-row"><input type="checkbox" data-provider="codex" checked /> Codex</label>
+      <label class="toggle-row"><input type="checkbox" data-provider="deepseek" checked /> DeepSeek</label>
+      <label class="toggle-row"><input type="checkbox" data-provider="cursor" checked /> Cursor</label>
+    </div>
 
     <div>
       <button id="save" type="button">Save</button>
