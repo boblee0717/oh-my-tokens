@@ -1,6 +1,8 @@
 # oh-my-tokens
 
-A Chrome extension that shows your usage across multiple AI coding agents — **Codex**, **Claude Code**, and **DeepSeek** — in one place.
+A local-first Chrome extension that shows your usage across AI coding tools — **Codex**, **Claude Code**, **DeepSeek**, and **Cursor** — in one popup.
+
+Built for personal and team use: install it, adapt it, and make your own version.
 
 ## Install this (with a coding agent)
 
@@ -52,6 +54,11 @@ Options page, or create `~/.oh-my-tokens/config.json`:
 { "deepseekApiKey": "sk-..." }
 ```
 
+### Show only the tools you use
+
+Don't use one of the providers? Hide it from the **pills at the top of the popup** or the
+**Options page** — a hidden provider is neither displayed nor queried.
+
 ---
 
 ## Why
@@ -79,8 +86,9 @@ A **Chrome Native Messaging host** + the extension as a viewer. No long-running 
 | **Claude Code** | local JSONL `~/.claude/projects/**/*.jsonl` | per-message tokens + estimated cost by model |
 | **Codex** | local `~/.codex/sessions/` + `archived_sessions/` | session tokens + quota % (5h + weekly) + plan + reset |
 | **DeepSeek** | DeepSeek API (balance) + platform.deepseek.com (token usage) | balance + per-model per-day token usage |
+| **Cursor** | cursor.com dashboard API + local sqlite fallback | per-model tokens + estimated cost, quota %; prompts login when signed out |
 
-Both Codex and Claude Code **quota %** render as progress bars. DeepSeek shows balance.
+Codex, Claude Code, and Cursor **quota %** render as progress bars. DeepSeek shows balance.
 
 ## Repo layout
 
@@ -88,14 +96,20 @@ Both Codex and Claude Code **quota %** render as progress bars. DeepSeek shows b
 oh-my-tokens/
 ├─ extension/   # MV3 Chrome extension (no build step, no deps)
 ├─ host/        # Native Messaging host (log parsers + DeepSeek client)
-│  └─ parsers/  # claude / codex / deepseek
+│  └─ parsers/  # claude / codex / deepseek / cursor
 ├─ shared/      # UsageRecord schema
 └─ README.md
 ```
 
 ## Privacy
 
-Log parsing happens entirely on your machine. The host returns only **aggregated** usage (no raw prompts/responses). The only outbound calls are to DeepSeek's API (with your key) and to claude.ai / platform.deepseek.com (via your logged-in browser session) for quota and token usage.
+Log parsing happens entirely on your machine. The host returns only **aggregated** usage (no raw prompts/responses). The only outbound calls are to DeepSeek's API (with your key) and to claude.ai / platform.deepseek.com / cursor.com (via your logged-in browser session) for quota and token usage.
+
+## License
+
+MIT. In plain English: anyone can use, copy, modify, and redistribute this project, including for their own customized version.
+
+See [LICENSE](./LICENSE) for the full text.
 
 ## Status
 
