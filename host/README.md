@@ -24,10 +24,14 @@ DEEPSEEK_API_KEY=sk-... node host/index.js
 ## Test
 
 ```bash
-node --test host/test/claude.test.js host/test/codex.test.js host/test/cursor.test.js host/test/deepseek.test.js host/test/native-host.test.js
+node --test host/test/*.test.js
 ```
 
-The Cursor fixture tests need a `sqlite3` CLI and self-skip when it's absent (e.g. Windows).
+`run-host.test.js` is an **end-to-end** test: it spawns the OS launcher the browser uses
+(`cmd.exe /c run-host.cmd` on Windows, `run-host.sh` elsewhere), sends a framed request,
+and asserts the framed `UsageReport` comes back intact — guarding the Windows risk that a
+`.cmd` wrapper corrupts the length-prefixed binary stream. The Cursor fixture tests need a
+`sqlite3` CLI and self-skip when it's absent (e.g. Windows).
 
 ## Install as a Chrome Native Messaging host (macOS)
 
@@ -61,8 +65,8 @@ the manifest there, and points the browser at it via the per-user registry key
 `…\Microsoft\Edge\…`, Chromium: `…\Chromium\…`) — no admin required. Chrome launches
 `run-host.cmd`, which resolves `node` and runs `native-host.js`. The `.cmd` wrapper writes
 nothing to stdout (diagnostics go to `%USERPROFILE%\.oh-my-tokens\host.log`), so Chrome's
-length-prefixed binary stdio protocol is preserved — verified end-to-end with a framed
-request/response (`node host/test/winhost.manual.mjs`).
+length-prefixed binary stdio protocol is preserved — covered by the end-to-end
+`host/test/run-host.test.js` (spawns the `.cmd` and checks the framed response is intact).
 
 > **Cursor on Windows:** the local fallback parser shells out to a `sqlite3` CLI, which
 > Windows doesn't ship. With no `sqlite3` on `PATH` the local parser yields no records (it
