@@ -41,6 +41,33 @@ hand the diff/patch or a precise description to claudeOpus, who integrates and p
   ("no local logs" ≠ "not logged in" — would misfire). An earlier native-host `login_prompt` approach
   (in `9922acd`) was removed for this reason.
 
+## 2026-05-30: Windows support (branch `feat/windows-support`)
+
+Ported the native host + installer to Windows; the extension itself was already
+platform-neutral. Key decisions, verified live on Windows 11 + Node 24:
+
+- **Registration is via the registry, not a file.** `host/install-windows.ps1` writes
+  `HKCU\Software\Google\Chrome\NativeMessagingHosts\com.ohmytokens.host` (Edge:
+  `…\Microsoft\Edge\…`; Chromium: `…\Chromium\…`), default value = manifest path. HKCU =
+  no admin. Create keys with `Test-Path` guards, **not `New-Item -Force`** — `-Force` on the
+  already-existing `NativeMessagingHosts` key throws "unauthorized operation".
+- **`run-host.cmd` replaces `run-host.sh`.** Chrome runs a `.cmd` via `cmd.exe /c`; node
+  inherits the browser's binary pipes directly, so the length-prefixed protocol survives —
+  *provided the wrapper writes nothing to stdout* (`@echo off`, all diagnostics → stderr →
+  `~/.oh-my-tokens/host.log`). `native-host.js` needs no change (Node stdio is binary-safe).
+  Manifest JSON written via `[IO.File]::WriteAllText` to avoid a UTF-8 **BOM** (a BOM breaks
+  Chrome's parser). Verified framed request/response through the installed `.cmd`.
+- **Cursor local parser:** `/usr/bin/sqlite3` was hardcoded. Now `resolveSqlite3()` probes
+  known paths + `which`/`where`; Windows usually has no `sqlite3.exe`, so it degrades to no
+  records (Cursor *web* connector is primary anyway). Cursor fixture tests self-skip when the
+  CLI is absent.
+- **`os.homedir()` ignores `HOME` on Windows (uses `USERPROFILE`).** `native-host.test.js`'s
+  isolation set only `HOME`, so on Windows it read the dev's real `~/.claude`; fixed by also
+  setting `USERPROFILE` in the test env. Claude/Codex/Cursor log dirs map cleanly to
+  `%USERPROFILE%\.claude` etc. — no path changes needed (`path.join` + `homedir()` already used).
+- Top-level `install.ps1` mirrors `install.sh` (`-Browser`, `-DeepSeekKey`, `-Launch`).
+  `install.sh` (macOS) stays the Linux path too.
+
 ## DEPLOY NOTE: keep one canonical source
 
 The native-messaging host runs whatever `run-host.sh` path the installed

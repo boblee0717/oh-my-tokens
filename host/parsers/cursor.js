@@ -1,11 +1,43 @@
 import { execFileSync } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { existsSync } from "node:fs";
 
-const SQLITE3 = "/usr/bin/sqlite3";
 const DEFAULT_DB = join(homedir(), ".cursor", "ai-tracking", "ai-code-tracking.db");
 
+// Cursor stores its tracking data in SQLite; we shell out to the `sqlite3` CLI rather than
+// bundle a native dependency (the host stays plain JS, no build step). The binary lives at
+// different places per platform — and on Windows it usually isn't installed at all — so
+// resolve it dynamically and degrade to no records when it's absent. The Cursor *web*
+// connector is the primary source; this local parser is only a fallback (see AGENTS.md).
+export function resolveSqlite3() {
+  const isWin = process.platform === "win32";
+  const known = isWin
+    ? []
+    : ["/usr/bin/sqlite3", "/opt/homebrew/bin/sqlite3", "/usr/local/bin/sqlite3"];
+  for (const c of known) {
+    if (existsSync(c)) return c;
+  }
+  try {
+    const locator = isWin ? "where" : "which";
+    const out = execFileSync(locator, [isWin ? "sqlite3.exe" : "sqlite3"], {
+      encoding: "utf8",
+      timeout: 3000,
+    });
+    const first = out
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean)[0];
+    if (first && existsSync(first)) return first;
+  } catch {
+  }
+  return null;
+}
+
+const SQLITE3 = resolveSqlite3();
+
 function sql(dbPath, query) {
+  if (!SQLITE3) return null;
   try {
     const out = execFileSync(SQLITE3, ["-json", dbPath, query], {
       encoding: "utf8",
