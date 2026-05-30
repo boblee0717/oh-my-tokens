@@ -27,11 +27,20 @@ DEEPSEEK_API_KEY=sk-... node host/index.js
 node --test host/test/*.test.js
 ```
 
-`run-host.test.js` is an **end-to-end** test: it spawns the OS launcher the browser uses
-(`cmd.exe /c run-host.cmd` on Windows, `run-host.sh` elsewhere), sends a framed request,
-and asserts the framed `UsageReport` comes back intact — guarding the Windows risk that a
-`.cmd` wrapper corrupts the length-prefixed binary stream. The Cursor fixture tests need a
-`sqlite3` CLI and self-skip when it's absent (e.g. Windows).
+Two end-to-end tests, both self-skipping when their prerequisites are absent:
+
+- **`run-host.test.js`** — spawns the OS launcher the browser uses (`cmd.exe /c run-host.cmd`
+  on Windows, `run-host.sh` elsewhere), sends a framed request, and asserts the framed
+  `UsageReport` comes back intact — guarding the Windows risk that a `.cmd` wrapper corrupts
+  the length-prefixed binary stream.
+- **`browser-e2e.test.js`** — the full *browser* leg: loads the unpacked extension in a real
+  Chromium browser, opens the popup, and asserts it shows live native-host data (proving the
+  browser found the registry entry and launched the host). Branded Chrome disables
+  `--load-extension` under automation (March 2025), but **Microsoft Edge still honors it**, so
+  this drives Edge. Skips unless Windows + Edge + the host registered for Edge
+  (`install.ps1 -Browser edge`) + a Node with global `WebSocket` (≥ 22).
+
+The Cursor fixture tests need a `sqlite3` CLI and self-skip when it's absent (e.g. Windows).
 
 ## Install as a Chrome Native Messaging host (macOS)
 
