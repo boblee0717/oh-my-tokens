@@ -2,16 +2,21 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { parseCursorUsage } from "../parsers/cursor.js";
+import { parseCursorUsage, resolveSqlite3 } from "../parsers/cursor.js";
 
 const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "cursor");
 const NOW = new Date("2026-05-26T12:00:00.000Z");
+
+// The fixture-backed tests need the sqlite3 CLI to read the .db. It isn't installed by
+// default on Windows; skip there (the local parser is a documented fallback) rather than
+// fail the suite. The missing-DB test below runs regardless.
+const noSqlite = resolveSqlite3() ? false : "sqlite3 CLI not available on this platform";
 
 function run() {
   return parseCursorUsage({ now: NOW, dbPath: join(fixturesDir, "ai-code-tracking.db") });
 }
 
-test("counts requests per model per time window from local SQLite", async () => {
+test("counts requests per model per time window from local SQLite", { skip: noSqlite }, async () => {
   const records = await run();
   const r1 = records.find((r) => r.model === "composer-2.5" && r.window === "today");
   assert.equal(r1, undefined, "composer-2.5 should not be in today (data is 2026-05-14)");
@@ -28,7 +33,7 @@ test("counts requests per model per time window from local SQLite", async () => 
   assert.equal(r3.confidence, "high");
 });
 
-test("handles multiple models correctly", async () => {
+test("handles multiple models correctly", { skip: noSqlite }, async () => {
   const records = await run();
   const opus = records.find((r) => r.model === "claude-opus-4-7" && r.window === "30d");
   assert.ok(opus, "claude-opus-4-7 should be in 30d");

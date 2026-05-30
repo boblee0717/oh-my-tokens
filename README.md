@@ -9,12 +9,26 @@ Built for personal and team use: install it, adapt it, and make your own version
 Send this repo to your coding agent (Claude Code, Codex, …) and say **"install this"**.
 It takes ~1 minute.
 
+**macOS / Linux:**
+
 ```bash
 git clone https://github.com/boblee0717/oh-my-tokens.git /tmp/oh-my-tokens
 /tmp/oh-my-tokens/install.sh        # registers the native host (fixed Extension ID)
 #   --deepseek-key sk-...   also set the DeepSeek key (→ ~/.oh-my-tokens/config.json)
 #   --browser canary|beta|edge
 ```
+
+**Windows (PowerShell):**
+
+```powershell
+git clone https://github.com/boblee0717/oh-my-tokens.git $env:TEMP\oh-my-tokens
+powershell -ExecutionPolicy Bypass -File $env:TEMP\oh-my-tokens\install.ps1
+#   -DeepSeekKey sk-...   also set the DeepSeek key (→ ~/.oh-my-tokens/config.json)
+#   -Browser edge|chromium|beta|canary
+```
+
+On Windows the host is registered in the per-user registry (`HKCU\Software\…\NativeMessagingHosts`,
+no admin needed) and launched via `run-host.cmd`; the runtime is otherwise identical.
 
 The installer copies the Native Messaging host runtime to `~/.oh-my-tokens/native-host/`
 and registers Chrome against that stable path, so the host is not executed from the
@@ -36,8 +50,9 @@ The Extension ID is fixed: `obmkhlamcmbmacadoolbfaagmojdobah`.
 
 ### Prerequisites
 
-- macOS, Chrome, Node ≥ 18
-- Claude Code and/or Codex used on this machine (logs in `~/.claude/` / `~/.codex/`)
+- macOS or Windows, Chrome (or Edge / Chromium), Node ≥ 18
+- Claude Code and/or Codex used on this machine (logs in `~/.claude/` / `~/.codex/`, i.e.
+  `%USERPROFILE%\.claude` / `%USERPROFILE%\.codex` on Windows)
 
 ### Verify
 
@@ -113,4 +128,7 @@ See [LICENSE](./LICENSE) for the full text.
 
 ## Status
 
-All MVP milestones are complete (M1–M11). Master is ready to use on macOS. Linux/Windows support is deferred.
+All MVP milestones are complete (M1–M11). Ready to use on **macOS and Windows** (Chrome,
+Edge, or Chromium). On Windows the Cursor *local* fallback parser needs a `sqlite3` CLI on
+`PATH` (not bundled with Windows); without it Cursor data still comes from the web connector,
+which is the primary source. Linux follows the macOS path (`install.sh`).

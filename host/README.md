@@ -24,8 +24,10 @@ DEEPSEEK_API_KEY=sk-... node host/index.js
 ## Test
 
 ```bash
-node --test host/test/claude.test.js host/test/codex.test.js host/test/deepseek.test.js host/test/native-host.test.js
+node --test host/test/claude.test.js host/test/codex.test.js host/test/cursor.test.js host/test/deepseek.test.js host/test/native-host.test.js
 ```
+
+The Cursor fixture tests need a `sqlite3` CLI and self-skip when it's absent (e.g. Windows).
 
 ## Install as a Chrome Native Messaging host (macOS)
 
@@ -40,6 +42,31 @@ This lets the extension pull live data instead of the bundled sample.
 # 3. (optional) configure a DeepSeek key for balance — see below.
 # 4. Reload the extension and open the popup.
 ```
+
+## Install as a Native Messaging host (Windows)
+
+```powershell
+# 1. Load the extension unpacked (chrome://extensions or edge://extensions → Load unpacked
+#    → ..\extension) and copy its Extension ID.
+# 2. Register the host (default Chrome; pass -Browser for others):
+powershell -ExecutionPolicy Bypass -File host\install-windows.ps1
+# powershell -ExecutionPolicy Bypass -File host\install-windows.ps1 -Browser edge
+# 3. (optional) configure a DeepSeek key for balance — see below.
+# 4. Reload the extension and open the popup.
+```
+
+`install-windows.ps1` copies the runtime to `%USERPROFILE%\.oh-my-tokens\native-host\`, writes
+the manifest there, and points the browser at it via the per-user registry key
+`HKCU\Software\Google\Chrome\NativeMessagingHosts\com.ohmytokens.host` (Edge:
+`…\Microsoft\Edge\…`, Chromium: `…\Chromium\…`) — no admin required. Chrome launches
+`run-host.cmd`, which resolves `node` and runs `native-host.js`. The `.cmd` wrapper writes
+nothing to stdout (diagnostics go to `%USERPROFILE%\.oh-my-tokens\host.log`), so Chrome's
+length-prefixed binary stdio protocol is preserved — verified end-to-end with a framed
+request/response (`node host/test/winhost.manual.mjs`).
+
+> **Cursor on Windows:** the local fallback parser shells out to a `sqlite3` CLI, which
+> Windows doesn't ship. With no `sqlite3` on `PATH` the local parser yields no records (it
+> degrades silently); Cursor usage still comes from the web connector, the primary source.
 
 ### DeepSeek API key
 
