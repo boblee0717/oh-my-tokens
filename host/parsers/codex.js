@@ -93,6 +93,11 @@ function windowLabel(minutes) {
 
 function quotaRecord(source, win, planType, updatedAt) {
   if (!win || typeof win.used_percent !== "number") return null;
+  // New Codex limit families (e.g. codex_bengalfox) report used_percent=0 with no plan_type:
+  // that is absent quota data, NOT a real "0% used". Drop it so the popup shows
+  // "quota data unavailable" instead of a misleading 0% bar. The Codex client UI gets the
+  // real % from its own live source, which the session jsonl does not expose.
+  if (win.used_percent === 0 && planType == null) return null;
   const label = windowLabel(num(win.window_minutes));
   const resetsAt = win.resets_at ? new Date(num(win.resets_at) * 1000).toISOString() : undefined;
   return {
@@ -122,6 +127,9 @@ function quotaRecord(source, win, planType, updatedAt) {
 function creditsRecord(source, credits, planType, updatedAt) {
   if (!credits || typeof credits !== "object") return null;
   const unlimited = credits.unlimited === true;
+  // balance == null/undefined means "no credits info", not 0. Number(null) === 0 would slip
+  // through the finite check below and render a misleading "0 credits", so reject it explicitly.
+  if (!unlimited && credits.balance == null) return null;
   const bal = Number(credits.balance);
   if (!unlimited && !Number.isFinite(bal)) return null;
   return {

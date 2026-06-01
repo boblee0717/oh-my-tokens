@@ -84,6 +84,19 @@ test("credits plan (null primary/secondary) surfaces a credits balance record", 
   assert.equal(records.some((r) => r.metricType === "quota_percent"), false);
 });
 
+test("new limit family with used_percent=0 + null plan_type/balance is unavailable, not 0%", async () => {
+  // codex_bengalfox-style: rate_limits report 0% with no plan_type and null balance.
+  // That is absent quota data, not real usage — drop quota_percent + balance so the popup
+  // shows "quota data unavailable" instead of a misleading 0% / "0 credits". Token usage stays.
+  const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "codex-bengalfox");
+  const records = await parseCodexUsage({ baseDir: dir, now: NOW });
+  assert.equal(records.some((r) => r.metricType === "quota_percent"), false, "no 0% quota rows");
+  assert.equal(records.some((r) => r.metricType === "balance"), false, "no '0 credits' balance row");
+  const tokens = records.find((r) => r.model === "gpt-5.5" && r.metricType === "measured_tokens");
+  assert.ok(tokens, "token usage is still reported");
+  assert.equal(tokens.inputTokens, 100);
+});
+
 test("falls back to filename-derived session id when session_meta is absent", async () => {
   const noMetaDir = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "codex-nometa");
   const records = await parseCodexUsage({ baseDir: noMetaDir, now: NOW });
