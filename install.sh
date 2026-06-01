@@ -2,7 +2,7 @@
 # One-command setup for oh-my-tokens (macOS).
 #
 # Usage:
-#   ./install.sh [--browser chrome|beta|canary|chromium|edge] [--deepseek-key sk-...] [--launch]
+#   ./install.sh [--browser chrome|beta|canary|chromium|edge] [--deepseek-key sk-...] [--launch] [--menubar]
 #
 # Does everything that can be scripted:
 #   - registers the Native Messaging host (with the fixed Extension ID)
@@ -19,12 +19,14 @@ EXT_DIR="${DIR}/extension"
 BROWSER="chrome"
 DEEPSEEK_KEY="${DEEPSEEK_API_KEY:-}"
 LAUNCH=0
+MENUBAR=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --browser) BROWSER="$2"; shift 2 ;;
     --deepseek-key) DEEPSEEK_KEY="$2"; shift 2 ;;
     --launch) LAUNCH=1; shift ;;
+    --menubar) MENUBAR=1; shift ;;
     -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
     *) echo "unknown arg: $1" >&2; exit 1 ;;
   esac
@@ -59,6 +61,11 @@ if [ "${LAUNCH}" = "1" ]; then
   echo "Launching Chrome with the extension preloaded (a full Chrome restart may be needed if it's already running)…"
   open -na "Google Chrome" --args --load-extension="${EXT_DIR}" >/dev/null 2>&1 || true
   echo "If Chrome was already open, fully quit it and run this again, or load it manually (below)."
+fi
+
+# 4. Optional macOS menu-bar app (SwiftBar plugin). Off unless --menubar is passed.
+if [ "${MENUBAR}" = "1" ]; then
+  "${DIR}/menubar/install-menubar.sh"
 fi
 
 cat <<MSG
