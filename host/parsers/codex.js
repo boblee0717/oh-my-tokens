@@ -32,7 +32,8 @@ function sessionIdFromFilename(file) {
 function parseSession(file, text) {
   let sessionId = sessionIdFromFilename(file);
   let model = "unknown";
-  let best = null;
+  let modelTs = 0;
+  const events = [];
   let rateLimits = null;
   let rateLimitsTs = 0;
 
@@ -51,12 +52,21 @@ function parseSession(file, text) {
       sessionId = payload.id;
     } else if (type === "turn_context" && payload.model) {
       model = payload.model;
+      const ts = Date.parse(o.timestamp ?? "");
+      modelTs = Number.isNaN(ts) ? modelTs : ts;
     } else if (type === "event_msg" && payload.type === "token_count") {
       const ts = Date.parse(o.timestamp ?? "");
       const tsMs = Number.isNaN(ts) ? 0 : ts;
       const total = payload.info?.total_token_usage;
-      if (total && (!best || num(total.total_tokens) >= num(best.usage.total_tokens))) {
-        best = { ts: tsMs, usage: total };
+      if (total) {
+        const cached = num(total.cached_input_tokens);
+        events.push({
+          ts: tsMs,
+          inputTokens: Math.max(0, num(total.input_tokens) - cached),
+          cacheTokens: cached,
+          outputTokens: num(total.output_tokens) + num(total.reasoning_output_tokens),
+          totalTokens: num(total.total_tokens),
+        });
       }
       if (payload.rate_limits && tsMs >= rateLimitsTs) {
         rateLimits = payload.rate_limits;
@@ -65,22 +75,63 @@ function parseSession(file, text) {
     }
   }
 
-  if (!best) return null;
-  const u = best.usage;
-  const cached = num(u.cached_input_tokens);
-  const input = Math.max(0, num(u.input_tokens) - cached);
-  const output = num(u.output_tokens) + num(u.reasoning_output_tokens);
+  if (!events.length) return null;
+  events.sort((a, b) => a.ts - b.ts || a.totalTokens - b.totalTokens);
+  const final = events.reduce((best, event) => (event.totalTokens >= best.totalTokens ? event : best), events[0]);
   return {
     sessionId,
     model,
-    ts: best.ts,
-    inputTokens: input,
-    cacheTokens: cached,
-    outputTokens: output,
-    totalTokens: num(u.total_tokens),
+    modelTs,
+    events,
+    totalTokens: final.totalTokens,
     rateLimits,
     rateLimitsTs,
   };
+}
+
+function mergeEvents(events) {
+  const byKey = new Map();
+  for (const event of events) {
+    byKey.set(
+      `${event.ts}:${event.totalTokens}:${event.inputTokens}:${event.cacheTokens}:${event.outputTokens}`,
+      event,
+    );
+  }
+  return [...byKey.values()].sort((a, b) => a.ts - b.ts || a.totalTokens - b.totalTokens);
+}
+
+function mergeSession(a, b) {
+  const events = mergeEvents([...a.events, ...b.events]);
+  const latestRateLimits = b.rateLimitsTs >= a.rateLimitsTs ? b : a;
+  const latestModel = b.modelTs >= a.modelTs ? b : a;
+  return {
+    sessionId: a.sessionId,
+    model: latestModel.model,
+    modelTs: latestModel.modelTs,
+    events,
+    totalTokens: Math.max(a.totalTokens, b.totalTokens),
+    rateLimits: latestRateLimits.rateLimits,
+    rateLimitsTs: latestRateLimits.rateLimitsTs,
+  };
+}
+
+function sessionDeltaForWindow(session, cutoff, nowMs) {
+  let before = null;
+  let after = null;
+  for (const event of session.events) {
+    if (event.ts > nowMs) continue;
+    if (event.ts < cutoff) {
+      before = event;
+    } else {
+      after = event;
+    }
+  }
+  if (!after) return null;
+  const inputTokens = Math.max(0, after.inputTokens - (before?.inputTokens ?? 0));
+  const cacheTokens = Math.max(0, after.cacheTokens - (before?.cacheTokens ?? 0));
+  const outputTokens = Math.max(0, after.outputTokens - (before?.outputTokens ?? 0));
+  if (inputTokens + cacheTokens + outputTokens === 0) return null;
+  return { inputTokens, cacheTokens, outputTokens };
 }
 
 function windowLabel(minutes) {
@@ -174,7 +225,7 @@ export async function parseCodexUsage(opts = {}) {
     }
     if (!session) continue;
     const prev = bySession.get(session.sessionId);
-    if (!prev || session.totalTokens > prev.totalTokens) bySession.set(session.sessionId, session);
+    bySession.set(session.sessionId, prev ? mergeSession(prev, session) : session);
   }
   const sessions = [...bySession.values()];
 
@@ -198,11 +249,13 @@ export async function parseCodexUsage(opts = {}) {
 
   for (const window of windows) {
     const cutoff = windowCutoff(window, now);
+    const nowMs = now.getTime();
     const byModel = new Map();
     for (const s of sessions) {
-      if (s.ts < cutoff) continue;
+      const delta = sessionDeltaForWindow(s, cutoff, nowMs);
+      if (!delta) continue;
       const arr = byModel.get(s.model) ?? [];
-      arr.push(s);
+      arr.push(delta);
       byModel.set(s.model, arr);
     }
     for (const [model, group] of byModel) {

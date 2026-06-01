@@ -1,0 +1,5 @@
+{"timestamp":"2026-05-11T10:00:00.000Z","type":"session_meta","payload":{"id":"99998888-0000-0000-0000-000000000008","cwd":"/tmp","cli_version":"x"}}
+{"timestamp":"2026-05-11T10:00:01.000Z","type":"turn_context","payload":{"model":"gpt-5.5","cwd":"/tmp"}}
+{"timestamp":"2026-05-18T10:00:02.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":8000,"cached_input_tokens":4000,"output_tokens":700,"reasoning_output_tokens":100,"total_tokens":8800}}}}
+{"timestamp":"2026-05-25T23:50:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10000,"cached_input_tokens":5000,"output_tokens":1000,"reasoning_output_tokens":100,"total_tokens":11100}}}}
+{"timestamp":"2026-05-26T10:30:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":11200,"cached_input_tokens":5400,"output_tokens":1100,"reasoning_output_tokens":150,"total_tokens":12450}}}}

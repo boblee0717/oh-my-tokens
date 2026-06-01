@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "oh-my-tokens",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "See your Codex / Claude Code / DeepSeek usage in one place.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAs4G7r/FGh1M117qDJnoJW6F2y9WovevyxsOb8F5zBQoD4c8zXAqz/77j2hqluA6eA4fLTU67CO4tBQgTVGu3dzKEqroWo1XgJLPC4GSeYW9YcDd9W5dFmcTluwyS+B0d8iaFbhDW7cbh3csh1FfEL+IJtO07q7olCo2qNntWpiURhrfEq4p66eAQOcIbwyzVJtd3LDGnBCwUfrTPpbLKPFKk01x73N4d56IeQEVzcBFIlHL5T5RlXrfguy+nNKGnXj5ueg8GRb1KaQtnORmRZuR18QgnwU9iNe4iDCcWykIfh1MuUOTMbTjN3O3tOV1PtguftRZpVNMh8AfpQH8bRwIDAQAB",
   "permissions": [

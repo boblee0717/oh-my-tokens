@@ -25,6 +25,25 @@ test("uses the final (cumulative) total_token_usage per session", async () => {
   assert.equal(r.requests, 1);
 });
 
+test("counts only the cumulative token delta inside each window for resumed sessions", async () => {
+  const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "codex-window-delta");
+  const records = await parseCodexUsage({ baseDir: dir, now: NOW });
+
+  const today = pick(records, "gpt-5.5", "today");
+  assert.ok(today, "expected resumed session to contribute today's delta");
+  assert.equal(today.inputTokens, 800);
+  assert.equal(today.cacheTokens, 400);
+  assert.equal(today.outputTokens, 150);
+  assert.equal(today.requests, 1);
+
+  const seven = pick(records, "gpt-5.5", "7d");
+  assert.ok(seven, "expected resumed session to contribute 7d delta");
+  assert.equal(seven.inputTokens, 1800);
+  assert.equal(seven.cacheTokens, 1400);
+  assert.equal(seven.outputTokens, 450);
+  assert.equal(seven.requests, 1);
+});
+
 test("dedups a session present in both sessions/ and archived_sessions/", async () => {
   const r = pick(await run(), "gpt-5.4", "7d");
   assert.ok(r);
