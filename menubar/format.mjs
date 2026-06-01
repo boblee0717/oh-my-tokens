@@ -53,6 +53,16 @@ function readQuotaCache() {
     return { savedAt: null, records: [] };
   }
 }
+// Standalone web-fetched token/cost usage (currently Cursor), written by refresh-quota.js.
+function readUsageCache() {
+  try {
+    const p = process.env.OMT_USAGE_CACHE || join(homedir(), ".oh-my-tokens", "usage-cache.json");
+    const parsed = JSON.parse(readFileSync(p, "utf8"));
+    return Array.isArray(parsed?.records) ? parsed.records : [];
+  } catch {
+    return [];
+  }
+}
 function ageStr(savedAt) {
   if (!savedAt) return "";
   const ms = Date.now() - new Date(savedAt).getTime();
@@ -90,8 +100,14 @@ const line = (s = "") => out.push(s);
     return;
   }
 
-  const recs = Array.isArray(report.records) ? report.records : [];
+  let recs = Array.isArray(report.records) ? report.records : [];
   const errs = Array.isArray(report.errors) ? report.errors : [];
+
+  // Merge standalone Cursor usage (real tokens + estimated cost the host fetched from
+  // cursor.com), replacing the local request-count-only records so Cursor shows tokens +
+  // cost and contributes to the headline total.
+  const cursorUsage = readUsageCache().filter((r) => r.provider === "cursor");
+  if (cursorUsage.length) recs = recs.filter((r) => r.provider !== "cursor").concat(cursorUsage);
 
   // ----- menu-bar headline: today's estimated cost, else today's tokens -----
   const todayCost = recs
@@ -139,52 +155,39 @@ const line = (s = "") => out.push(s);
     }
   }
 
-  // ----- group by provider, then model, for the "today" window -----
+  // ----- usage by provider/model (today), rendered FLAT (top level, one step) -----
+  let anyEstimated = false;
   const present = PROVIDER_ORDER.filter((p) => recs.some((r) => r.provider === p));
   for (const p of present) {
     const pr = recs.filter((r) => r.provider === p);
+    const provCost = pr
+      .filter((r) => r.window === "today" && r.metricType === "estimated_cost")
+      .reduce((s, r) => s + (Number(r.costUSD) || 0), 0);
     line("---");
-    line(`${PROVIDER_LABEL[p] || p}`);
-    // Some providers (Cursor) only expose request counts, not token totals.
-    const tokenless = pr.length > 0 && pr.every((r) => r.metricType !== "measured_tokens");
-    if (tokenless && pr.some((r) => r.metricType === "request_count")) {
-      line(`--request counts only — not tokens | size=11 color=#888`);
-    }
+    line(`${PROVIDER_LABEL[p] || p}${provCost > 0 ? ` · ${money(provCost)} today` : ""} | size=12 color=#888`);
 
-    // balance (e.g. Codex credits, DeepSeek)
     const bal = pr.find((r) => r.metricType === "balance");
-    if (bal) {
-      line(`--Balance: ${abbr(bal.balance)} ${bal.currency || ""} | font=Menlo size=12`);
-    }
+    if (bal) line(`Balance: ${abbr(bal.balance)} ${bal.currency || ""} | font=Menlo size=12`);
 
-    // today rows per model
     const today = pr.filter((r) => r.window === "today");
     const models = [...new Set(today.map((r) => r.model).filter(Boolean))];
-    if (models.length === 0 && !bal) {
-      line(`--no activity today | color=#888 size=11`);
-    }
+    if (!models.length && !bal) line(`no activity today | size=11 color=#888`);
     for (const m of models) {
       const mt = today.filter((r) => r.model === m);
       const tok = mt.find((r) => r.metricType === "measured_tokens");
       const cost = mt.find((r) => r.metricType === "estimated_cost");
-      const reqRow = mt.find((r) => r.metricType === "request_count");
-      const reqs = tok?.requests ?? reqRow?.requests ?? 0;
+      const reqs = tok?.requests ?? mt.find((r) => r.metricType === "request_count")?.requests ?? 0;
       const parts = [`${reqs} req`];
-      if (cost) parts.push(money(cost.costUSD));
-      line(`--${m} · ${parts.join(" · ")} | font=Menlo size=12`);
-      if (tok) {
-        line(
-          `----in ${abbr(tok.inputTokens)} · out ${abbr(tok.outputTokens)} · cache ${abbr(
-            tok.cacheTokens
-          )} | font=Menlo size=11 color=#888`
-        );
+      if (cost) {
+        parts.push(money(cost.costUSD));
+        if (cost.confidence === "low") anyEstimated = true;
       }
-      if (cost?.confidence === "low") {
-        line(`----⚠︎ cost is estimated, not billing | size=11 color=#c08a3e`);
-      }
+      if (tok) parts.push(`${abbr((tok.inputTokens || 0) + (tok.outputTokens || 0) + (tok.cacheTokens || 0))} tok`);
+      line(`${m}  ${parts.join(" · ")} | font=Menlo size=12`);
     }
 
-    // 7d / 30d rollup in a submenu
+    // 7d / 30d rollup on a single compact top-level line.
+    const roll = [];
     for (const w of ["7d", "30d"]) {
       const wr = pr.filter((r) => r.window === w);
       if (!wr.length) continue;
@@ -194,13 +197,16 @@ const line = (s = "") => out.push(s);
       const wreq = wr
         .filter((r) => r.metricType === "measured_tokens" || r.metricType === "request_count")
         .reduce((s, r) => s + (Number(r.requests) || 0), 0);
-      const summ = wcost > 0 ? `${money(wcost)} · ${wreq} req` : `${wreq} req`;
-      line(`--${w}: ${summ} | font=Menlo size=11 color=#888`);
+      roll.push(`${w} ${wcost > 0 ? money(wcost) + " · " : ""}${wreq} req`);
     }
+    if (roll.length) line(`${roll.join("    ")} | font=Menlo size=11 color=#888`);
   }
 
   // ----- footer -----
   line("---");
+  if (anyEstimated) {
+    line(`⚠︎ costs are estimated, not billing | size=11 color=#c08a3e`);
+  }
   if (errs.length) {
     line(`⚠ ${errs.length} source error(s) | color=#e07a5f size=11`);
     for (const e of errs) line(`--${e.provider}: ${String(e.message).slice(0, 100)} | font=Menlo size=11`);

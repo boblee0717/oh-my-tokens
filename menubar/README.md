@@ -47,11 +47,19 @@ the extension's Claude/Codex pushes never clobber each other. Each provider line
 own freshness ("just now" / "31m ago", "(stale)" after 24h). A provider with no data yet is
 simply omitted.
 
+## Cost (menu-bar total)
+The 🎫 menu-bar number is **today's total estimated cost across all providers**, and the
+dropdown shows each provider/model flat (one glance, no submenu):
+- **Claude Code** — tokens from local logs × the Claude price table.
+- **Codex** — tokens from local logs × an **assumed GPT price** (`host/pricing.js`, `gpt`
+  family — edit if you know the real rates).
+- **Cursor** — real per-model tokens + cost fetched standalone from cursor.com's usage
+  events (`cursor-usage.js`); the cost is Cursor's own reported per-event value.
+All costs are **estimates, not billing** (flagged in the dropdown).
+
 ## Scope / limits
-- Token / cost / request data is **local** (Claude Code / Codex / Cursor-local /
-  DeepSeek-by-key). Cost is estimated from a static price table, flagged in the dropdown —
-  not authoritative billing.
-- Quota % freshness is popup-driven (see above), not live-polled.
+- Codex/Cursor costs use assumed/derived rates — directional, not invoices.
+- Quota % freshness: Cursor is live (standalone); Claude/Codex are popup-driven (see above).
 
 ## Uninstall
 ```bash
