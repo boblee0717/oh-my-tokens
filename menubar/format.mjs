@@ -122,10 +122,14 @@ const line = (s = "") => out.push(s);
     for (const p of PROVIDER_ORDER) {
       if (!byProv[p]) continue;
       const plan = byProv[p].find((q) => q.planType)?.planType;
-      line(`${PROVIDER_LABEL[p] || p}${plan ? ` · ${plan}` : ""}`);
+      // Quota rows are rendered at the TOP level (no `--`) so they're visible the moment
+      // the dropdown opens — one glance, no submenu drill-down.
+      line(`${PROVIDER_LABEL[p] || p}${plan ? ` · ${plan}` : ""} | size=12 color=#888`);
+      const width = Math.max(...byProv[p].map((q) => (q.windowLabel || "usage").length));
       for (const q of byProv[p]) {
         const n = Number(q.usedPercent) || 0;
-        line(`--${q.windowLabel || "usage"}  ${bar(n)}  ${pctStr(n)}% | font=Menlo size=12${pctColor(n)}`);
+        const label = (q.windowLabel || "usage").padEnd(width);
+        line(`${label}  ${bar(n)} ${pctStr(n)}% | font=Menlo size=13${pctColor(n)}`);
       }
     }
   }
