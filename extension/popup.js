@@ -2,6 +2,7 @@ import { getUsageReport, DEFAULT_HOST_NAME } from "./usage-client.js";
 import { fetchClaudeQuota } from "./claude-web.js";
 import { fetchDeepSeekUsage } from "./deepseek-usage.js";
 import { fetchCursorUsage } from "./cursor-web.js";
+import { fetchCodexQuota } from "./codex-web.js";
 
 const PROVIDER_NAMES = {
   "claude-code": "Claude Code",
@@ -281,6 +282,7 @@ async function load() {
     if (activeProviders.includes("claude-code")) await applyWebResult("claude-code", () => fetchClaudeQuota());
     if (activeProviders.includes("cursor")) await applyWebResult("cursor", () => fetchCursorUsage());
     if (activeProviders.includes("deepseek")) await applyWebResult("deepseek", () => fetchDeepSeekUsage());
+    if (activeProviders.includes("codex")) await applyWebResult("codex", () => fetchCodexQuota());
   }
 }
 
@@ -349,7 +351,7 @@ document.getElementById("provider-filter").addEventListener("click", async (e) =
   try { await chrome.storage.local.set({ enabledProviders: activeProviders }); } catch {}
   render();
   if (enabling && report && report._source !== "sample") {
-    const fetchers = { "claude-code": fetchClaudeQuota, cursor: fetchCursorUsage, deepseek: fetchDeepSeekUsage };
+    const fetchers = { "claude-code": fetchClaudeQuota, cursor: fetchCursorUsage, deepseek: fetchDeepSeekUsage, codex: fetchCodexQuota };
     if (fetchers[p]) await applyWebResult(p, () => fetchers[p]());
   }
 });
