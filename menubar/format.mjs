@@ -113,20 +113,25 @@ const line = (s = "") => out.push(s);
   // ----- plan usage % (login-gated; from the popup-written quota cache) -----
   const quota = readQuotaCache();
   if (quota.records.length) {
-    const age = ageStr(quota.savedAt);
-    const stale = quota.savedAt && Date.now() - new Date(quota.savedAt).getTime() > 24 * 3600e3;
     line("---");
-    line(`Plan usage${age ? ` · ${age}${stale ? " (stale)" : ""}` : ""} | size=11 color=#888`);
+    line(`Plan usage | size=11 color=#888`);
     const byProv = {};
     for (const q of quota.records) (byProv[q.provider] ??= []).push(q);
     for (const p of PROVIDER_ORDER) {
       if (!byProv[p]) continue;
-      const plan = byProv[p].find((q) => q.planType)?.planType;
+      const recs = byProv[p];
+      const plan = recs.find((q) => q.planType)?.planType;
+      // Per-provider freshness: Cursor refreshes standalone every minute; Claude/Codex
+      // only update while Chrome is open, so a single global timestamp would mislead.
+      const newest = Math.max(...recs.map((q) => Date.parse(q.updatedAt) || 0));
+      const age = newest ? ageStr(new Date(newest).toISOString()) : "";
+      const stale = newest && Date.now() - newest > 24 * 3600e3;
+      const meta = [plan, age && `${age}${stale ? " (stale)" : ""}`].filter(Boolean).join(" · ");
       // Quota rows are rendered at the TOP level (no `--`) so they're visible the moment
       // the dropdown opens — one glance, no submenu drill-down.
-      line(`${PROVIDER_LABEL[p] || p}${plan ? ` · ${plan}` : ""} | size=12 color=#888`);
-      const width = Math.max(...byProv[p].map((q) => (q.windowLabel || "usage").length));
-      for (const q of byProv[p]) {
+      line(`${PROVIDER_LABEL[p] || p}${meta ? ` · ${meta}` : ""} | size=12 color=#888`);
+      const width = Math.max(...recs.map((q) => (q.windowLabel || "usage").length));
+      for (const q of recs) {
         const n = Number(q.usedPercent) || 0;
         const label = (q.windowLabel || "usage").padEnd(width);
         line(`${label}  ${bar(n)} ${pctStr(n)}% | font=Menlo size=13${pctColor(n)}`);

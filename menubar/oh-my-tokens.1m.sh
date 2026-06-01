@@ -32,6 +32,8 @@ FORMAT="${OMT_FORMAT:-$HOME/.oh-my-tokens/menubar/format.mjs}"
 [ -f "${FORMAT}" ] || FORMAT="${HERE}/format.mjs"  # dev fallback: alongside the script
 # Installed host CLI (install.sh copies the runtime here).
 REPORT_CLI="${OMT_HOST_CLI:-$HOME/.oh-my-tokens/native-host/host/index.js}"
+# Standalone quota refresh (fetches Cursor plan usage via the saved cookie — no browser).
+REFRESH_CLI="$(dirname "${REPORT_CLI}")/refresh-quota.js"
 
 if [ -z "${NODE}" ]; then
   echo "🎫 ⚠︎"
@@ -48,5 +50,8 @@ if [ ! -f "${REPORT_CLI}" ]; then
   echo "Run oh-my-tokens install.sh first | size=11 color=#888"
   exit 0
 fi
+
+# Refresh standalone quota first (best-effort, self-throttled, never blocks rendering).
+[ -f "${REFRESH_CLI}" ] && "${NODE}" "${REFRESH_CLI}" 2>/dev/null || true
 
 "${NODE}" "${REPORT_CLI}" 2>/dev/null | "${NODE}" "${FORMAT}"

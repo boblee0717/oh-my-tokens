@@ -1,5 +1,5 @@
 import { buildUsageReport } from "./report.js";
-import { writeQuotaCache } from "./quota-cache.js";
+import { mergeQuotaCache } from "./quota-cache.js";
 
 const HOST_VERSION = "0.0.0-m5";
 const MAX_MESSAGE = 64 * 1024 * 1024;
@@ -62,8 +62,14 @@ async function main() {
   // saveQuota: the popup pushes its browser-fetched quota_percent records so the
   // menu-bar plugin can show plan usage. Cache them and ack; don't build a report.
   if (req && req.type === "saveQuota") {
-    const saved = await writeQuotaCache(req.records);
-    await writeMessage({ ok: true, saved: saved.records.length });
+    const pushed = (Array.isArray(req.records) ? req.records : []).filter(
+      (r) => r && r.metricType === "quota_percent"
+    );
+    // Replace only the providers the extension actually sent; leave others (e.g. the
+    // host's own standalone Cursor records) intact.
+    const providers = [...new Set(pushed.map((r) => r.provider))];
+    await mergeQuotaCache(pushed, providers);
+    await writeMessage({ ok: true, saved: pushed.length });
     process.exitCode = 0;
     return;
   }

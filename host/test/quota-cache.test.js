@@ -58,6 +58,36 @@ test("writeQuotaCache keeps only quota_percent records; readQuotaCache round-tri
   }
 });
 
+test("mergeQuotaCache replaces only the named providers, keeps the rest", async () => {
+  const home = await mkdtemp(join(tmpdir(), "omt-quota-merge-"));
+  const prevHome = process.env.HOME;
+  const prevProfile = process.env.USERPROFILE;
+  process.env.HOME = home;
+  process.env.USERPROFILE = home;
+  try {
+    const { mergeQuotaCache, readQuotaCache } = await import("../quota-cache.js?case=merge");
+    const claude = { ...QUOTA, id: "claude::q", provider: "claude-code" };
+    const cursorOld = { ...QUOTA, usedPercent: 10 };
+    await mergeQuotaCache([claude, cursorOld]); // seed: claude + cursor
+    // Host refreshes ONLY cursor → claude must survive, cursor must update.
+    const cursorNew = { ...QUOTA, usedPercent: 42 };
+    await mergeQuotaCache([cursorNew], ["cursor"]);
+    const { records } = await readQuotaCache();
+    const byProv = Object.fromEntries(records.map((r) => [r.provider, r]));
+    assert.equal(records.length, 2);
+    assert.equal(byProv["claude-code"].usedPercent, 13.7, "claude untouched");
+    assert.equal(byProv["cursor"].usedPercent, 42, "cursor replaced");
+    // needs_login for cursor → empty merge clears only cursor, claude stays.
+    await mergeQuotaCache([], ["cursor"]);
+    const after = (await readQuotaCache()).records;
+    assert.deepEqual(after.map((r) => r.provider), ["claude-code"]);
+  } finally {
+    process.env.HOME = prevHome;
+    process.env.USERPROFILE = prevProfile;
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
 test("native host saveQuota caches quota_percent and acks, without building a report", async () => {
   const home = await mkdtemp(join(tmpdir(), "omt-quota-host-"));
   const child = spawn(process.execPath, [hostPath], {

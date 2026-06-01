@@ -29,13 +29,23 @@ shows 7d / 30d rollups. Refreshes every minute.
   points SwiftBar at the plugin folder (only if you don't already use one), launches it.
 
 ## Plan usage % (quota)
-Login-gated quota % (Cursor plan usage, claude.ai) can only be fetched by the browser
-extension using your cookies — the host's local-log parsers never see it. The popup
-**pushes** the quota % it fetches to the native host (`{type:"saveQuota"}`), which caches
-it to `~/.oh-my-tokens/quota-cache.json`; the menu-bar plugin reads that cache and shows a
-**Plan usage** section with per-provider bars + an "as of …" age. So quota in the menu bar
-reflects the **last time you opened the Chrome popup** (it's stamped, and flagged "(stale)"
-after 24h). No popup opened yet → the section is simply omitted.
+Plan-usage % (Cursor, claude.ai, Codex) is login-gated — it requires the site's login, so
+it can't come from local logs. The menu bar shows it from `~/.oh-my-tokens/quota-cache.json`,
+which is filled two ways depending on the provider:
+
+- **Cursor — standalone, no browser needed.** Each refresh the plugin runs
+  `refresh-quota.js`, which reads your saved `cursor.com` cookie from the browser cookie
+  store (macOS Keychain, one-time "Always Allow"), calls `cursor.com/api/usage-summary`
+  itself, and merges the result. So Cursor stays current even with Chrome closed.
+  (`chrome-cookies.js` does the read/decrypt; `cursor-quota.js` does the fetch/map.)
+- **Claude.ai / Codex — via the extension.** These sit behind Cloudflare bot protection
+  that rejects non-browser TLS fingerprints, so a standalone host can't fetch them; the
+  Chrome extension pushes them to the host (`{type:"saveQuota"}`) when it runs.
+
+The cache **merges per provider** (`mergeQuotaCache`), so the standalone Cursor refresh and
+the extension's Claude/Codex pushes never clobber each other. Each provider line shows its
+own freshness ("just now" / "31m ago", "(stale)" after 24h). A provider with no data yet is
+simply omitted.
 
 ## Scope / limits
 - Token / cost / request data is **local** (Claude Code / Codex / Cursor-local /
