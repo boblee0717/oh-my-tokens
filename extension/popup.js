@@ -1,4 +1,4 @@
-import { getUsageReport, DEFAULT_HOST_NAME } from "./usage-client.js";
+import { getUsageReport, DEFAULT_HOST_NAME, saveQuotaToHost } from "./usage-client.js";
 import { fetchClaudeQuota } from "./claude-web.js";
 import { fetchDeepSeekUsage } from "./deepseek-usage.js";
 import { fetchCursorUsage } from "./cursor-web.js";
@@ -283,6 +283,14 @@ async function load() {
     if (activeProviders.includes("cursor")) await applyWebResult("cursor", () => fetchCursorUsage());
     if (activeProviders.includes("deepseek")) await applyWebResult("deepseek", () => fetchDeepSeekUsage());
     if (activeProviders.includes("codex")) await applyWebResult("codex", () => fetchCodexQuota());
+
+    // Cache the freshly-fetched quota % so the macOS menu-bar plugin can show it too.
+    // Push when we have quota, or when a provider is explicitly logged out (to clear a
+    // stale cache); skip on transient total failure so a good cache isn't wiped.
+    const quotaNow = report.records.filter((r) => r.metricType === "quota_percent");
+    if (quotaNow.length || Object.keys(loginPrompts).length) {
+      saveQuotaToHost(report.records, { hostName: settings.hostName });
+    }
   }
 }
 

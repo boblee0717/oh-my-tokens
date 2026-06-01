@@ -2,7 +2,8 @@
 
 Shows your AI coding tool usage (Claude Code / Codex / Cursor / DeepSeek) in the macOS
 menu bar, without opening Chrome. It reuses the existing native host — same local
-token / cost / request numbers the Chrome popup shows.
+token / cost / request numbers the Chrome popup shows — plus plan-usage % (quota) via a
+cache the popup writes (see "Plan usage %" below).
 
 ## Why SwiftBar
 - **One command, agent-installable** — `install-menubar.sh` does everything.
@@ -27,13 +28,20 @@ shows 7d / 30d rollups. Refreshes every minute.
 - `install-menubar.sh` — installs SwiftBar if missing, places the plugin + formatter,
   points SwiftBar at the plugin folder (only if you don't already use one), launches it.
 
-## Scope / limits (v1)
-- Shows **local** data: tokens, estimated cost, request counts (Claude Code / Codex /
-  Cursor-local / DeepSeek-by-key). Cost is estimated from a static price table, flagged
-  in the dropdown — not authoritative billing.
-- **Login-gated quota %** (Cursor plan %, claude.ai) is NOT shown — that data is fetched
-  by the browser extension using your cookies and isn't available to a standalone app.
-  A later bridge (extension writes quota JSON to a local file the plugin merges) can add it.
+## Plan usage % (quota)
+Login-gated quota % (Cursor plan usage, claude.ai) can only be fetched by the browser
+extension using your cookies — the host's local-log parsers never see it. The popup
+**pushes** the quota % it fetches to the native host (`{type:"saveQuota"}`), which caches
+it to `~/.oh-my-tokens/quota-cache.json`; the menu-bar plugin reads that cache and shows a
+**Plan usage** section with per-provider bars + an "as of …" age. So quota in the menu bar
+reflects the **last time you opened the Chrome popup** (it's stamped, and flagged "(stale)"
+after 24h). No popup opened yet → the section is simply omitted.
+
+## Scope / limits
+- Token / cost / request data is **local** (Claude Code / Codex / Cursor-local /
+  DeepSeek-by-key). Cost is estimated from a static price table, flagged in the dropdown —
+  not authoritative billing.
+- Quota % freshness is popup-driven (see above), not live-polled.
 
 ## Uninstall
 ```bash

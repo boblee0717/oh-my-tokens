@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 // oh-my-tokens menu-bar formatter.
 // Reads the native-host usage report (JSON) on stdin and prints SwiftBar/xbar
-// plugin output on stdout. No new data logic — it just renders host/index.js.
+// plugin output on stdout. No new data logic — it just renders host/index.js,
+// plus the login-gated quota % from the host's quota cache (written by the popup).
 //
 // SwiftBar format: the first line is the menu-bar title; everything after the
 // first `---` is the dropdown. `--` nests a submenu. `| key=val` sets params.
+
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 const PROVIDER_LABEL = {
   "claude-code": "Claude Code",
@@ -24,6 +29,40 @@ function abbr(n) {
 function money(n) {
   n = Number(n) || 0;
   return n >= 100 ? "$" + n.toFixed(0) : "$" + n.toFixed(2);
+}
+function pctStr(n) {
+  n = Math.max(0, Math.min(100, Number(n) || 0));
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+// 10-cell unicode bar for a 0–100 percentage (menu menus can't draw real bars).
+function bar(n) {
+  const filled = Math.round(Math.max(0, Math.min(100, Number(n) || 0)) / 10);
+  return "█".repeat(filled) + "░".repeat(10 - filled);
+}
+function pctColor(n) {
+  n = Number(n) || 0;
+  return n >= 80 ? " color=#e07a5f" : n >= 50 ? " color=#c08a3e" : "";
+}
+// Login-gated quota % is written to a cache by the popup (the host can't fetch it).
+function readQuotaCache() {
+  try {
+    const p = process.env.OMT_QUOTA_CACHE || join(homedir(), ".oh-my-tokens", "quota-cache.json");
+    const parsed = JSON.parse(readFileSync(p, "utf8"));
+    return { savedAt: parsed?.savedAt ?? null, records: Array.isArray(parsed?.records) ? parsed.records : [] };
+  } catch {
+    return { savedAt: null, records: [] };
+  }
+}
+function ageStr(savedAt) {
+  if (!savedAt) return "";
+  const ms = Date.now() - new Date(savedAt).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return "";
+  const min = Math.round(ms / 60000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.round(min / 60);
+  if (hr < 48) return `${hr}h ago`;
+  return `${Math.round(hr / 24)}d ago`;
 }
 
 function readStdin() {
@@ -70,6 +109,26 @@ const line = (s = "") => out.push(s);
   line(`🎫 ${headline} | sfimage=ticket`);
   line("---");
   line(`oh-my-tokens · today | size=11 color=#888`);
+
+  // ----- plan usage % (login-gated; from the popup-written quota cache) -----
+  const quota = readQuotaCache();
+  if (quota.records.length) {
+    const age = ageStr(quota.savedAt);
+    const stale = quota.savedAt && Date.now() - new Date(quota.savedAt).getTime() > 24 * 3600e3;
+    line("---");
+    line(`Plan usage${age ? ` · ${age}${stale ? " (stale)" : ""}` : ""} | size=11 color=#888`);
+    const byProv = {};
+    for (const q of quota.records) (byProv[q.provider] ??= []).push(q);
+    for (const p of PROVIDER_ORDER) {
+      if (!byProv[p]) continue;
+      const plan = byProv[p].find((q) => q.planType)?.planType;
+      line(`${PROVIDER_LABEL[p] || p}${plan ? ` · ${plan}` : ""}`);
+      for (const q of byProv[p]) {
+        const n = Number(q.usedPercent) || 0;
+        line(`--${q.windowLabel || "usage"}  ${bar(n)}  ${pctStr(n)}% | font=Menlo size=12${pctColor(n)}`);
+      }
+    }
+  }
 
   // ----- group by provider, then model, for the "today" window -----
   const present = PROVIDER_ORDER.filter((p) => recs.some((r) => r.provider === p));

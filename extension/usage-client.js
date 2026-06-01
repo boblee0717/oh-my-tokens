@@ -86,6 +86,23 @@ function viaNativePort(hostName, deepseekApiKey, timeoutMs = DEFAULT_NATIVE_TIME
   });
 }
 
+// Push the browser-fetched quota_percent records to the native host so it can cache them
+// for non-browser consumers (the macOS menu-bar plugin). Fire-and-forget: best effort,
+// never blocks or breaks the popup; no-op when native messaging is unavailable.
+export function saveQuotaToHost(records, { hostName = DEFAULT_HOST_NAME } = {}) {
+  const quota = (Array.isArray(records) ? records : []).filter(
+    (r) => r && r.metricType === "quota_percent",
+  );
+  try {
+    if (typeof chrome === "undefined" || !chrome.runtime?.sendNativeMessage) return;
+    chrome.runtime.sendNativeMessage(hostName, { type: "saveQuota", records: quota }, () => {
+      void chrome.runtime?.lastError; // swallow — caching is best-effort
+    });
+  } catch {
+    // ignore — caching quota for the menu bar is never required for the popup to work
+  }
+}
+
 async function viaSample() {
   const url =
     typeof chrome !== "undefined" && chrome.runtime?.getURL
