@@ -1,6 +1,6 @@
 # oh-my-tokens
 
-A local-first Chrome extension that shows your usage across AI coding tools — **Codex**, **Claude Code**, **DeepSeek**, and **Cursor** — in one popup.
+A local-first usage dashboard for your AI coding tools — **Codex**, **Claude Code**, **DeepSeek**, and **Cursor** — in a **Chrome popup** and an optional **macOS menu-bar app**. It shows token counts, estimated cost (totalled across all providers), plan-usage %, and balances at a glance.
 
 Built for personal and team use: install it, adapt it, and make your own version.
 
@@ -74,6 +74,22 @@ Options page, or create `~/.oh-my-tokens/config.json`:
 Don't use one of the providers? Hide it from the **pills at the top of the popup** or the
 **Options page** — a hidden provider is neither displayed nor queried.
 
+### macOS menu bar (optional)
+
+Want your usage in the menu bar without opening Chrome? Run the host install with
+`--menubar` (or `./menubar/install-menubar.sh` afterwards):
+
+```bash
+./install.sh --menubar     # installs SwiftBar (free, notarized) + the oh-my-tokens plugin
+```
+
+A 🎫 item appears in the menu bar; the dropdown shows plan-usage % and per-provider
+tokens/cost in one glance. **Local data (tokens/cost/requests) and Cursor plan-usage %
+refresh on their own** — Cursor by reusing your saved `cursor.com` login cookie, so Chrome
+need not be open. Claude.ai / Codex plan-usage % sit behind Cloudflare bot protection that a
+standalone process can't pass, so those update while the Chrome extension is running. See
+[`menubar/README.md`](./menubar/README.md) for details and uninstall.
+
 ---
 
 ## Why
@@ -99,19 +115,22 @@ A **Chrome Native Messaging host** + the extension as a viewer. No long-running 
 | Tool | Source | What we get |
 |------|--------|-------------|
 | **Claude Code** | local JSONL `~/.claude/projects/**/*.jsonl` | per-message tokens + estimated cost by model |
-| **Codex** | local `~/.codex/sessions/` + `archived_sessions/` | session tokens + quota % (5h + weekly) + plan + reset |
+| **Codex** | local `~/.codex/sessions/` + `archived_sessions/` | session tokens + estimated cost (assumed GPT pricing) + quota % (5h + weekly) + plan + reset |
 | **DeepSeek** | DeepSeek API (balance) + platform.deepseek.com (token usage) | balance + per-model per-day token usage |
-| **Cursor** | cursor.com dashboard API + local sqlite fallback | per-model tokens + estimated cost, quota %; prompts login when signed out |
+| **Cursor** | cursor.com dashboard API (popup; **and the menu-bar host standalone, via your saved cookie**) + local sqlite fallback | per-model tokens + estimated cost, quota %; prompts login when signed out |
 
-Codex, Claude Code, and Cursor **quota %** render as progress bars. DeepSeek shows balance.
+Codex, Claude Code, and Cursor **quota %** render as progress bars; DeepSeek shows balance.
+Cost figures are **estimates, not billing** — Claude uses a published price table, Codex an
+**assumed** GPT-tier table (edit `host/pricing.js`), Cursor its own per-event reported value.
 
 ## Repo layout
 
 ```
 oh-my-tokens/
 ├─ extension/   # MV3 Chrome extension (no build step, no deps)
-├─ host/        # Native Messaging host (log parsers + DeepSeek client)
+├─ host/        # Native Messaging host (log parsers + DeepSeek client + standalone Cursor fetch)
 │  └─ parsers/  # claude / codex / deepseek / cursor
+├─ menubar/     # macOS menu-bar app (SwiftBar plugin + installer)
 ├─ shared/      # UsageRecord schema
 └─ README.md
 ```
@@ -119,6 +138,8 @@ oh-my-tokens/
 ## Privacy
 
 Log parsing happens entirely on your machine. The host returns only **aggregated** usage (no raw prompts/responses). The only outbound calls are to DeepSeek's API (with your key) and to claude.ai / platform.deepseek.com / cursor.com (via your logged-in browser session) for quota and token usage.
+
+**Menu-bar standalone fetch (macOS):** to show Cursor usage without Chrome open, the host reads your saved `cursor.com` cookie from the local Chrome cookie store — decrypted with the key in your login Keychain (you approve this once via the standard macOS prompt). The cookie is used only to call `cursor.com` from your own machine; it is never logged, stored elsewhere, or sent anywhere but cursor.com.
 
 ## License
 
@@ -128,7 +149,7 @@ See [LICENSE](./LICENSE) for the full text.
 
 ## Status
 
-All MVP milestones are complete (M1–M11). Ready to use on **macOS and Windows** (Chrome,
-Edge, or Chromium). On Windows the Cursor *local* fallback parser needs a `sqlite3` CLI on
+Ready to use on **macOS and Windows** (Chrome, Edge, or Chromium); the optional **menu-bar
+app is macOS-only**. On Windows the Cursor *local* fallback parser needs a `sqlite3` CLI on
 `PATH` (not bundled with Windows); without it Cursor data still comes from the web connector,
 which is the primary source. Linux follows the macOS path (`install.sh`).
