@@ -4,6 +4,21 @@ A local-first usage dashboard for your AI coding tools — **Codex**, **Claude C
 
 Built for personal and team use: install it, adapt it, and make your own version.
 
+## 🎫 macOS menu bar — usage without opening Chrome
+
+The headline feature on macOS: your usage **right in the menu bar**, always a glance away.
+One command sets it up:
+
+```bash
+./install.sh --menubar     # registers the host + installs SwiftBar (free, notarized) + the plugin
+```
+
+The 🎫 item shows **today's total estimated cost**; the dropdown breaks down plan-usage %
+and per-provider tokens/cost in one tap. **Cursor and your local token/cost data refresh on
+their own** — Cursor reuses your saved `cursor.com` cookie — so it stays current **with
+Chrome closed**. (Claude.ai / Codex plan-usage % update while the Chrome extension runs;
+they sit behind Cloudflare.) Details + uninstall: [`menubar/README.md`](./menubar/README.md).
+
 ## Install this (with a coding agent)
 
 Send this repo to your coding agent (Claude Code, Codex, …) and say **"install this"**.
@@ -73,22 +88,6 @@ Options page, or create `~/.oh-my-tokens/config.json`:
 
 Don't use one of the providers? Hide it from the **pills at the top of the popup** or the
 **Options page** — a hidden provider is neither displayed nor queried.
-
-### macOS menu bar (optional)
-
-Want your usage in the menu bar without opening Chrome? Run the host install with
-`--menubar` (or `./menubar/install-menubar.sh` afterwards):
-
-```bash
-./install.sh --menubar     # installs SwiftBar (free, notarized) + the oh-my-tokens plugin
-```
-
-A 🎫 item appears in the menu bar; the dropdown shows plan-usage % and per-provider
-tokens/cost in one glance. **Local data (tokens/cost/requests) and Cursor plan-usage %
-refresh on their own** — Cursor by reusing your saved `cursor.com` login cookie, so Chrome
-need not be open. Claude.ai / Codex plan-usage % sit behind Cloudflare bot protection that a
-standalone process can't pass, so those update while the Chrome extension is running. See
-[`menubar/README.md`](./menubar/README.md) for details and uninstall.
 
 ---
 
