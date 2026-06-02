@@ -9,8 +9,8 @@ Built for personal and team use: install it, adapt it, and make your own version
 Everything starts from one clone; then you choose *how you want to see* your usage. On
 **macOS you can run the menu-bar app on its own, the Chrome extension on its own, or both.**
 
-| Setup | One command | What you get | Needs Chrome? |
-|-------|-------------|--------------|---------------|
+| Setup | One command | What you get | Needs Chrome running? |
+|-------|-------------|--------------|:---------------------:|
 | 🎫 **macOS menu bar** (standalone) | `./install.sh --menubar` | Every tool's tokens / cost / requests **+ Cursor plan-usage % & cost**, in the menu bar | **No** — updates with Chrome closed |
 | 🧩 **Chrome extension** (popup) | `./install.sh` + load unpacked | The same, in a popup — **plus** login-gated plan-usage % for **Claude.ai** & **Codex** | Yes |
 | **Both** | `--menubar` + load the extension | Menu bar **and** popup; the menu bar then also shows Claude/Codex plan-usage % | Yes |
