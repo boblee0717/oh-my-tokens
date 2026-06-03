@@ -39,9 +39,17 @@ function bar(n) {
   const filled = Math.round(Math.max(0, Math.min(100, Number(n) || 0)) / 10);
   return "█".repeat(filled) + "░".repeat(10 - filled);
 }
+// Accent/dim colors adapt to the system appearance (the plugin passes OMT_APPEARANCE) so
+// they stay legible in both light and dark menus. Plain (unset) text already adapts.
+const DARK = process.env.OMT_APPEARANCE === "dark";
+const COL = {
+  dim: DARK ? "#9aa0a6" : "#6b6b6b",
+  warn: DARK ? "#e6b450" : "#9a6a1a",
+  high: DARK ? "#ff8a72" : "#c0392b",
+};
 function pctColor(n) {
   n = Number(n) || 0;
-  return n >= 80 ? " color=#e07a5f" : n >= 50 ? " color=#c08a3e" : "";
+  return n >= 80 ? ` color=${COL.high}` : n >= 50 ? ` color=${COL.warn}` : "";
 }
 // Login-gated quota % is written to a cache by the popup (the host can't fetch it).
 function readQuotaCache() {
@@ -92,10 +100,10 @@ const line = (s = "") => out.push(s);
   try {
     report = JSON.parse(await readStdin());
   } catch (e) {
-    line("⚠️ oh-my-tokens | sfimage=exclamationmark.triangle color=#e07a5f");
+    line(`⚠️ oh-my-tokens | sfimage=exclamationmark.triangle color=${COL.high}`);
     line("---");
-    line("Host returned no/invalid data | color=#888");
-    line(`${String(e).slice(0, 120)} | font=Menlo size=11 color=#888`);
+    line(`Host returned no/invalid data | color=${COL.dim}`);
+    line(`${String(e).slice(0, 120)} | font=Menlo size=11 color=${COL.dim}`);
     process.stdout.write(out.join("\n") + "\n");
     return;
   }
@@ -124,13 +132,13 @@ const line = (s = "") => out.push(s);
     todayCost > 0 ? money(todayCost) : todayTokens > 0 ? abbr(todayTokens) + " tok" : "—";
   line(`🎫 ${headline} | sfimage=ticket`);
   line("---");
-  line(`oh-my-tokens · today | size=11 color=#888`);
+  line(`oh-my-tokens · today | size=11 color=${COL.dim}`);
 
   // ----- plan usage % (login-gated; from the popup-written quota cache) -----
   const quota = readQuotaCache();
   if (quota.records.length) {
     line("---");
-    line(`Plan usage | size=11 color=#888`);
+    line(`Plan usage | size=11 color=${COL.dim}`);
     const byProv = {};
     for (const q of quota.records) (byProv[q.provider] ??= []).push(q);
     for (const p of PROVIDER_ORDER) {
@@ -145,7 +153,7 @@ const line = (s = "") => out.push(s);
       const meta = [plan, age && `${age}${stale ? " (stale)" : ""}`].filter(Boolean).join(" · ");
       // Quota rows are rendered at the TOP level (no `--`) so they're visible the moment
       // the dropdown opens — one glance, no submenu drill-down.
-      line(`${PROVIDER_LABEL[p] || p}${meta ? ` · ${meta}` : ""} | size=12 color=#888`);
+      line(`${PROVIDER_LABEL[p] || p}${meta ? ` · ${meta}` : ""} | size=12 color=${COL.dim}`);
       const width = Math.max(...recs.map((q) => (q.windowLabel || "usage").length));
       for (const q of recs) {
         const n = Number(q.usedPercent) || 0;
@@ -164,14 +172,14 @@ const line = (s = "") => out.push(s);
       .filter((r) => r.window === "today" && r.metricType === "estimated_cost")
       .reduce((s, r) => s + (Number(r.costUSD) || 0), 0);
     line("---");
-    line(`${PROVIDER_LABEL[p] || p}${provCost > 0 ? ` · ${money(provCost)} today` : ""} | size=12 color=#888`);
+    line(`${PROVIDER_LABEL[p] || p}${provCost > 0 ? ` · ${money(provCost)} today` : ""} | size=12 color=${COL.dim}`);
 
     const bal = pr.find((r) => r.metricType === "balance");
     if (bal) line(`Balance: ${abbr(bal.balance)} ${bal.currency || ""} | font=Menlo size=12`);
 
     const today = pr.filter((r) => r.window === "today");
     const models = [...new Set(today.map((r) => r.model).filter(Boolean))];
-    if (!models.length && !bal) line(`no activity today | size=11 color=#888`);
+    if (!models.length && !bal) line(`no activity today | size=11 color=${COL.dim}`);
     for (const m of models) {
       const mt = today.filter((r) => r.model === m);
       const tok = mt.find((r) => r.metricType === "measured_tokens");
@@ -199,20 +207,20 @@ const line = (s = "") => out.push(s);
         .reduce((s, r) => s + (Number(r.requests) || 0), 0);
       roll.push(`${w} ${wcost > 0 ? money(wcost) + " · " : ""}${wreq} req`);
     }
-    if (roll.length) line(`${roll.join("    ")} | font=Menlo size=11 color=#888`);
+    if (roll.length) line(`${roll.join("    ")} | font=Menlo size=11 color=${COL.dim}`);
   }
 
   // ----- footer -----
   line("---");
   if (anyEstimated) {
-    line(`⚠︎ costs are estimated, not billing | size=11 color=#c08a3e`);
+    line(`⚠︎ costs are estimated, not billing | size=11 color=${COL.warn}`);
   }
   if (errs.length) {
-    line(`⚠ ${errs.length} source error(s) | color=#e07a5f size=11`);
+    line(`⚠ ${errs.length} source error(s) | color=${COL.high} size=11`);
     for (const e of errs) line(`--${e.provider}: ${String(e.message).slice(0, 100)} | font=Menlo size=11`);
   }
   const gen = report.generatedAt ? report.generatedAt.replace("T", " ").slice(0, 16) + " UTC" : "";
-  line(`Updated ${gen} | size=11 color=#888`);
+  line(`Updated ${gen} | size=11 color=${COL.dim}`);
   line("Refresh | refresh=true sfimage=arrow.clockwise");
 
   process.stdout.write(out.join("\n") + "\n");

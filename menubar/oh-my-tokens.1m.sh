@@ -54,4 +54,12 @@ fi
 # Refresh standalone quota first (best-effort, self-throttled, never blocks rendering).
 [ -f "${REFRESH_CLI}" ] && "${NODE}" "${REFRESH_CLI}" 2>/dev/null || true
 
+# Tell the formatter the system appearance so its accent/dim colors stay legible in a dark
+# menu (the default text color already adapts; only the explicit colors need this).
+if [ "$(defaults read -g AppleInterfaceStyle 2>/dev/null)" = "Dark" ]; then
+  export OMT_APPEARANCE=dark
+else
+  export OMT_APPEARANCE=light
+fi
+
 "${NODE}" "${REPORT_CLI}" 2>/dev/null | "${NODE}" "${FORMAT}"
