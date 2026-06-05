@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseAnalyticsText, fetchCodexQuota } from "../codex-web.js";
+import { parseAnalyticsText, parseResetToISO, fetchCodexQuota } from "../codex-web.js";
 
 // Representative innerText of chatgpt.com/codex/cloud/settings/analytics (zh, 2026-06-01).
 // The page shows REMAINING %. Main plan renders before the GPT-5.3-Codex-Spark section.
@@ -34,9 +34,37 @@ test("parses main-plan 5h + weekly as used% = 100 - remaining; ignores Spark + c
   assert.ok(weekly, "weekly record");
   assert.equal(weekly.usedPercent, 14); // 100 - 86 remaining
 
+  // reset times parsed from "重置时间：…" (5h = same-day time, weekly = full date)
+  assert.ok(five.resetsAt, "5h has resetsAt");
+  const fr = new Date(five.resetsAt);
+  assert.equal(fr.getHours(), 19);
+  assert.equal(fr.getMinutes(), 11);
+  const wr = new Date(weekly.resetsAt);
+  assert.equal(wr.getFullYear(), 2026);
+  assert.equal(wr.getMonth(), 5); // June (0-based)
+  assert.equal(wr.getDate(), 8);
+  assert.equal(wr.getHours(), 3);
+  assert.equal(wr.getMinutes(), 10);
+
   // No Spark windows leaked in (Spark 5h/weekly were 100% remaining = 0% used).
   assert.equal(recs.some((r) => /Spark/i.test(r.windowLabel)), false);
   assert.equal(recs.some((r) => r.usedPercent === 0), false);
+});
+
+test("parseResetToISO: time-only → today (next day if past); full date parsed", () => {
+  const now = new Date(2026, 5, 5, 11, 0, 0); // Jun 5, 11:00 local
+  const future = new Date(parseResetToISO("19:11", now));
+  assert.equal(future.getDate(), 5);
+  assert.equal(future.getHours(), 19);
+  assert.equal(future.getMinutes(), 11);
+  const past = new Date(parseResetToISO("03:00", now)); // already past 11:00 → next day
+  assert.equal(past.getDate(), 6);
+  const full = new Date(parseResetToISO("2026年6月8日 3:10", now));
+  assert.equal(full.getMonth(), 5);
+  assert.equal(full.getDate(), 8);
+  assert.equal(full.getHours(), 3);
+  assert.equal(parseResetToISO("", now), undefined);
+  assert.equal(parseResetToISO("no time here", now), undefined);
 });
 
 test("empty / non-matching text → no records", () => {

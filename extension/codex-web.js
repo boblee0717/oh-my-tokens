@@ -24,7 +24,26 @@ function clampPct(n) {
   return Math.max(0, Math.min(100, n));
 }
 
-function quotaRecord(label, remainingPercent, planType) {
+// The analytics page shows each limit's reset time as "重置时间：HH:MM" (same-day, for the
+// 5h window) or "重置时间：YYYY年M月D日 H:MM" (a date, for weekly). Convert to an ISO string
+// for resetsAt; the menu bar / popup render it via formatReset.
+export function parseResetToISO(s, now = new Date()) {
+  if (!s || typeof s !== "string") return undefined;
+  let m = s.match(/(\d{4})年(\d{1,2})月(\d{1,2})日\s*(\d{1,2})[：:](\d{2})/);
+  if (m) {
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]));
+    return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+  }
+  m = s.match(/(\d{1,2})[：:](\d{2})/); // time only → today; if already past, next day
+  if (m) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), Number(m[1]), Number(m[2]));
+    if (d.getTime() < now.getTime()) d.setDate(d.getDate() + 1);
+    return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+  }
+  return undefined;
+}
+
+function quotaRecord(label, remainingPercent, planType, resetsAt) {
   const remaining = clampPct(remainingPercent);
   if (remaining === null) return null;
   return {
@@ -44,7 +63,7 @@ function quotaRecord(label, remainingPercent, planType) {
     // page gives remaining; popup wants used
     usedPercent: Math.round((100 - remaining) * 10) / 10,
     windowLabel: label,
-    resetsAt: undefined,
+    resetsAt: resetsAt || undefined,
     planType: planType || undefined,
     updatedAt: new Date().toISOString(),
     confidence: "high",
@@ -69,15 +88,25 @@ export function parseAnalyticsText(text) {
     }
     return null;
   };
+  // The reset line ("重置时间：…") follows the limit's "N% 剩余". Capture the first one after
+  // the label that's still in the main-plan section (before the Spark marker).
+  const mainReset = (labelPattern) => {
+    const re = new RegExp(labelPattern + "[\\s\\S]{0,80}?重置时间[：:]\\s*([^\\n]+)", "g");
+    let m;
+    while ((m = re.exec(text))) {
+      if (sparkIdx < 0 || m.index < sparkIdx) return m[1].trim();
+    }
+    return null;
+  };
   const out = [];
-  const push = (label, rem) => {
-    const rec = quotaRecord(label, rem, "Codex");
+  const push = (label, rem, reset) => {
+    const rec = quotaRecord(label, rem, "Codex", parseResetToISO(reset));
     if (rec) out.push(rec);
   };
   const r5 = mainRemaining("5\\s*小时使用限额");
   const rW = mainRemaining("每周使用限额");
-  if (r5 !== null) push("5h", r5);
-  if (rW !== null) push("Weekly", rW);
+  if (r5 !== null) push("5h", r5, mainReset("5\\s*小时使用限额"));
+  if (rW !== null) push("Weekly", rW, mainReset("每周使用限额"));
   return out;
 }
 
