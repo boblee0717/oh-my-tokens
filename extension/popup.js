@@ -311,9 +311,15 @@ async function applyWebResult(provider, fetcher) {
     // this provider, drop the native host's request_count fallback records for it (e.g.
     // Cursor's local sqlite request counts give way to the dashboard's per-model tokens).
     const hasTokens = result.records.some((r) => r.metricType === "measured_tokens");
-    const base = hasTokens
-      ? report.records.filter((r) => !(r.provider === provider && r.metricType === "request_count"))
-      : report.records;
+    const hasQuota = result.records.some((r) => r.metricType === "quota_percent");
+    const base = report.records.filter(
+      (r) =>
+        r.provider !== provider ||
+        !(
+          (hasTokens && r.metricType === "request_count") ||
+          (hasQuota && r.metricType === "quota_percent")
+        ),
+    );
     report.records = [...base, ...result.records];
   }
   render();
