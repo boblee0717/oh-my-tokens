@@ -82,6 +82,17 @@ function ageStr(savedAt) {
   if (hr < 48) return `${hr}h ago`;
   return `${Math.round(hr / 24)}d ago`;
 }
+function formatReset(resetsAt) {
+  if (!resetsAt) return "";
+  const d = new Date(resetsAt);
+  if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const when = sameDay
+    ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : d.toLocaleDateString([], { month: "short", day: "numeric" });
+  return `resets ${when}`;
+}
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -158,7 +169,8 @@ const line = (s = "") => out.push(s);
       for (const q of recs) {
         const n = Number(q.usedPercent) || 0;
         const label = (q.windowLabel || "usage").padEnd(width);
-        line(`${label}  ${bar(n)} ${pctStr(n)}% | font=Menlo size=13${pctColor(n)}`);
+        const reset = formatReset(q.resetsAt);
+        line(`${label}  ${bar(n)} ${pctStr(n)}%${reset ? ` · ${reset}` : ""} | font=Menlo size=13${pctColor(n)}`);
       }
     }
   }
