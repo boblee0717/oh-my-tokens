@@ -241,7 +241,9 @@ const line = (s = "") => out.push(s);
   // Show the update time in the user's LOCAL timezone (like the reset times), not UTC.
   const gd = report.generatedAt ? new Date(report.generatedAt) : null;
   const gen = gd && !Number.isNaN(gd.getTime())
-    ? gd.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    ? gd.toLocaleString([], {
+        month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short",
+      })
     : "";
   line(`Updated ${gen} |${item({ color: COL.dim, size: 11 })}`);
   line("Refresh | refresh=true sfimage=arrow.clockwise");
