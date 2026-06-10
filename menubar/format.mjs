@@ -40,22 +40,26 @@ function bar(n) {
   const filled = Math.round(Math.max(0, Math.min(100, Number(n) || 0)) / 12.5);
   return "▰".repeat(filled) + "▱".repeat(8 - filled);
 }
-// System-inspired colors. Dark mode uses Apple's semantic palette: high contrast
-// primary text, calm secondary text, and status colors only where they carry meaning.
-const DARK = process.env.OMT_APPEARANCE === "dark";
+// System-inspired colors as SwiftBar adaptive "light,dark" pairs: the menu re-tints
+// live when the system appearance changes, so a render from a minute ago (or an Auto
+// appearance flip) can never show dark-mode text on a light menu. Apple-semantic-ish:
+// high contrast primary, calm secondary, status colors only where they carry meaning.
+// Menus are vibrancy-translucent, so light-mode status colors run darker than the
+// usual system palette — pale tints lose contrast against whatever bleeds through.
 const COL = {
-  primary: DARK ? "#f5f5f7" : "#1d1d1f",
-  dim: DARK ? "#a1a1aa" : "#6b6b6b",
-  muted: DARK ? "#6e737d" : "#8a8a8e",
-  accent: DARK ? "#64d2ff" : "#007aff",
-  warn: DARK ? "#ffd60a" : "#9a6a1a",
-  high: DARK ? "#ff453a" : "#c0392b",
+  primary: "#1d1d1f,#f5f5f7",
+  dim: "#56565b,#a1a1aa",
+  muted: "#6e6e73,#98989d",
+  warn: "#7a4f00,#ffd60a",
+  high: "#b3261e,#ff453a",
 };
 const item = ({ color = COL.primary, size = 12, font = "" } = {}) =>
   `${font ? ` font=${font}` : ""} size=${size} color=${color}`;
+// Color carries meaning only when something needs attention; healthy rows stay in
+// primary text (the ▰▱ bar already shows the level) so the menu isn't a wall of tint.
 function pctColor(n) {
   n = Number(n) || 0;
-  return n >= 80 ? COL.high : n >= 50 ? COL.warn : COL.accent;
+  return n >= 80 ? COL.high : n >= 50 ? COL.warn : COL.primary;
 }
 // Login-gated quota % is written to a cache by the popup (the host can't fetch it).
 function readQuotaCache() {

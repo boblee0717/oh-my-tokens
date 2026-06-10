@@ -38,28 +38,22 @@ REFRESH_CLI="$(dirname "${REPORT_CLI}")/refresh-quota.js"
 if [ -z "${NODE}" ]; then
   echo "🎫 ⚠︎"
   echo "---"
-  echo "Node not found on PATH | color=#e07a5f"
-  echo "Install Node >= 18 and reload | size=11 color=#888"
+  echo "Node not found on PATH | color=#c0392b,#ff6b5e"
+  echo "Install Node >= 18 and reload | size=11 color=#6b6b6b,#a1a1aa"
   exit 0
 fi
 if [ ! -f "${REPORT_CLI}" ]; then
   echo "🎫 ⚠︎"
   echo "---"
-  echo "Host CLI not found | color=#e07a5f"
-  echo "${REPORT_CLI} | font=Menlo size=11 color=#888"
-  echo "Run oh-my-tokens install.sh first | size=11 color=#888"
+  echo "Host CLI not found | color=#c0392b,#ff6b5e"
+  echo "${REPORT_CLI} | font=Menlo size=11 color=#6b6b6b,#a1a1aa"
+  echo "Run oh-my-tokens install.sh first | size=11 color=#6b6b6b,#a1a1aa"
   exit 0
 fi
 
 # Refresh standalone quota first (best-effort, self-throttled, never blocks rendering).
 [ -f "${REFRESH_CLI}" ] && "${NODE}" "${REFRESH_CLI}" 2>/dev/null || true
 
-# Tell the formatter the system appearance so its accent/dim colors stay legible in a dark
-# menu (the default text color already adapts; only the explicit colors need this).
-if [ "$(defaults read -g AppleInterfaceStyle 2>/dev/null)" = "Dark" ]; then
-  export OMT_APPEARANCE=dark
-else
-  export OMT_APPEARANCE=light
-fi
-
+# No appearance detection here: the formatter emits SwiftBar "light,dark" color pairs,
+# which adapt live — a snapshot of AppleInterfaceStyle would go stale between refreshes.
 "${NODE}" "${REPORT_CLI}" 2>/dev/null | "${NODE}" "${FORMAT}"
