@@ -1,5 +1,9 @@
 const FAMILY_PRICES = {
-  opus: { inputPerMTok: 15, outputPerMTok: 75, cacheWritePerMTok: 18.75, cacheReadPerMTok: 1.5 },
+  // Claude Fable 5 / Mythos 5 — $10 in / $50 out per MTok; cache write 1.25x, cache read 0.1x input
+  fable: { inputPerMTok: 10, outputPerMTok: 50, cacheWritePerMTok: 12.5, cacheReadPerMTok: 1 },
+  mythos: { inputPerMTok: 10, outputPerMTok: 50, cacheWritePerMTok: 12.5, cacheReadPerMTok: 1 },
+  // Opus 4.6/4.7/4.8 — $5 in / $25 out per MTok (the old $15/$75 was Claude 3 Opus, retired Jan 2026)
+  opus: { inputPerMTok: 5, outputPerMTok: 25, cacheWritePerMTok: 6.25, cacheReadPerMTok: 0.5 },
   sonnet: { inputPerMTok: 3, outputPerMTok: 15, cacheWritePerMTok: 3.75, cacheReadPerMTok: 0.3 },
   haiku: { inputPerMTok: 1, outputPerMTok: 5, cacheWritePerMTok: 1.25, cacheReadPerMTok: 0.1 },
   // Codex / OpenAI GPT — ASSUMED rates (GPT-5 tier). Adjust here if you know the real
