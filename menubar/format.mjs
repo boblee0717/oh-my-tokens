@@ -97,10 +97,10 @@ function formatReset(resetsAt) {
   const d = new Date(resetsAt);
   if (Number.isNaN(d.getTime())) return "";
   const now = new Date();
+  const hm = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const sameDay = d.toDateString() === now.toDateString();
-  const when = sameDay
-    ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    : d.toLocaleDateString([], { month: "short", day: "numeric" });
+  // Cross-day: compact numeric date + time (locale-stable), e.g. "6/15 00:39".
+  const when = sameDay ? hm : `${d.getMonth() + 1}/${d.getDate()} ${hm}`;
   return `resets ${when}`;
 }
 
