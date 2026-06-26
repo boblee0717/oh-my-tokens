@@ -247,8 +247,10 @@ const line = (s = "") => out.push(s);
         s + (Number(r.inputTokens) || 0) + (Number(r.outputTokens) || 0) + (Number(r.cacheTokens) || 0),
       0
     );
-  const headline =
-    todayCost > 0 ? money(todayCost) : todayTokens > 0 ? abbr(todayTokens) + " tok" : "—";
+  const headlineParts = [];
+  if (todayCost > 0) headlineParts.push(money(todayCost));
+  if (todayTokens > 0) headlineParts.push(`${abbr(todayTokens)} tok`);
+  const headline = headlineParts.length ? headlineParts.join(" · ") : "—";
   line(`🎫 ${headline} | sfimage=ticket`);
   line("---");
   line(`oh-my-tokens · today |${item({ color: COL.dim, size: 11 })}`);

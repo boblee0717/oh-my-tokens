@@ -47,9 +47,9 @@ the extension's Claude/Codex pushes never clobber each other. Each provider line
 own freshness ("just now" / "31m ago", "(stale)" after 24h). A provider with no data yet is
 simply omitted.
 
-## Cost (menu-bar total)
-The 🎫 menu-bar number is **today's total estimated cost across all providers**, and the
-dropdown shows each provider/model flat (one glance, no submenu):
+## Cost and tokens (menu-bar total)
+The 🎫 menu-bar number shows **today's total estimated cost and today's total tokens across
+all providers/models**, and the dropdown shows each provider/model flat (one glance, no submenu):
 - **Claude Code** — tokens from local logs × the Claude price table.
 - **Codex** — tokens from local logs × an **assumed GPT price** (`host/pricing.js`, `gpt`
   family — edit if you know the real rates).

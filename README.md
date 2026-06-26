@@ -43,7 +43,7 @@ cd /tmp/oh-my-tokens
 ./install.sh --menubar      # host + SwiftBar (free, notarized) + the 🎫 plugin
 ```
 
-A 🎫 item appears showing **today's total estimated cost**; the dropdown breaks down
+A 🎫 item appears showing **today's total estimated cost and total tokens**; the dropdown breaks down
 plan-usage % and per-provider tokens/cost in one tap. Cursor + local data refresh on their
 own (Cursor via your saved `cursor.com` cookie), so it stays current with Chrome closed.
 Details + uninstall: [`menubar/README.md`](./menubar/README.md).

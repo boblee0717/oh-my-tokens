@@ -30,6 +30,82 @@ function runFormat(report, env) {
   });
 }
 
+test("headline displays today's total tokens from all models beside today's estimated cost", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "omt-format-headline-"));
+  const quotaCache = join(dir, "quota-cache.json");
+  const usageCache = join(dir, "usage-cache.json");
+  await writeFile(quotaCache, JSON.stringify({ records: [] }));
+  await writeFile(usageCache, JSON.stringify({ records: [] }));
+
+  const out = await runFormat(
+    {
+      generatedAt: "2026-06-26T07:06:12.562Z",
+      errors: [],
+      records: [
+        {
+          id: "codex:gpt-5.5:today:measured_tokens",
+          provider: "codex",
+          model: "gpt-5.5",
+          metricType: "measured_tokens",
+          window: "today",
+          inputTokens: 800000,
+          outputTokens: 100000,
+          cacheTokens: 5000000,
+        },
+        {
+          id: "claude-code:claude-sonnet-4-6:today:measured_tokens",
+          provider: "claude-code",
+          model: "claude-sonnet-4-6",
+          metricType: "measured_tokens",
+          window: "today",
+          inputTokens: 1000,
+          outputTokens: 2000,
+          cacheTokens: 0,
+        },
+        {
+          id: "cursor:composer-2.5:today:measured_tokens",
+          provider: "cursor",
+          model: "composer-2.5",
+          metricType: "measured_tokens",
+          window: "today",
+          inputTokens: 100000,
+          outputTokens: 20000,
+          cacheTokens: 70000,
+        },
+        {
+          id: "codex:gpt-5.5:today:estimated_cost",
+          provider: "codex",
+          model: "gpt-5.5",
+          metricType: "estimated_cost",
+          window: "today",
+          costUSD: 2.75,
+        },
+        {
+          id: "cursor:composer-2.5:today:estimated_cost",
+          provider: "cursor",
+          model: "composer-2.5",
+          metricType: "estimated_cost",
+          window: "today",
+          costUSD: 0.25,
+        },
+        {
+          id: "codex:gpt-5.5:7d:measured_tokens",
+          provider: "codex",
+          model: "gpt-5.5",
+          metricType: "measured_tokens",
+          window: "7d",
+          inputTokens: 9000000000,
+          outputTokens: 0,
+          cacheTokens: 0,
+        },
+      ],
+    },
+    { OMT_QUOTA_CACHE: quotaCache, OMT_USAGE_CACHE: usageCache },
+  );
+
+  assert.equal(out.split("\n")[0], "🎫 $3.00 · 6.1M tok | sfimage=ticket");
+});
+
 test("PLAN USAGE prefers newer quota records from the host report over stale cache", async () => {
   const dir = await mkdtemp(join(tmpdir(), "omt-format-"));
   const quotaCache = join(dir, "quota-cache.json");
