@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 // oh-my-tokens menu-bar formatter.
 // Reads the native-host usage report (JSON) on stdin and prints SwiftBar/xbar
-// plugin output on stdout. No new data logic — it just renders host/index.js,
-// plus the login-gated quota % from the host's quota cache (written by the popup).
+// plugin output on stdout. It renders host/index.js, merges cached quota %, and
+// appends privacy-safe aggregate samples for quota-vs-token slope analysis.
 //
 // SwiftBar format: the first line is the menu-bar title; everything after the
 // first `---` is the dropdown. `--` nests a submenu. `| key=val` sets params.
 
-import { readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 const PROVIDER_LABEL = {
   "claude-code": "Claude Code",
@@ -61,7 +61,8 @@ function pctColor(n) {
   n = Number(n) || 0;
   return n >= 80 ? COL.high : n >= 50 ? COL.warn : COL.primary;
 }
-// Login-gated quota % is written to a cache by the popup (the host can't fetch it).
+// Login-gated quota % is written to a cache by the popup; local host quota records
+// such as Codex rate_limits can still be fresher and are merged below.
 function readQuotaCache() {
   try {
     const p = process.env.OMT_QUOTA_CACHE || join(homedir(), ".oh-my-tokens", "quota-cache.json");
@@ -69,6 +70,103 @@ function readQuotaCache() {
     return { savedAt: parsed?.savedAt ?? null, records: Array.isArray(parsed?.records) ? parsed.records : [] };
   } catch {
     return { savedAt: null, records: [] };
+  }
+}
+function quotaRecordTime(q, fallback = 0) {
+  const t = Date.parse(q?.updatedAt ?? "");
+  return Number.isNaN(t) ? fallback : t;
+}
+function quotaRecordKey(q) {
+  return q?.id || [q?.provider, q?.model ?? "", q?.windowLabel ?? ""].join(":");
+}
+function mergeQuotaRecords(cache, reportRecords) {
+  const cacheFallback = Date.parse(cache.savedAt ?? "");
+  const cacheTime = Number.isNaN(cacheFallback) ? 0 : cacheFallback;
+  const byKey = new Map();
+  const add = (q, fallback = 0) => {
+    if (!q || q.metricType !== "quota_percent" || !q.provider) return;
+    const key = quotaRecordKey(q);
+    const t = quotaRecordTime(q, fallback);
+    const prev = byKey.get(key);
+    if (!prev || t >= prev.t) byKey.set(key, { q, t });
+  };
+  for (const q of cache.records) add(q, cacheTime);
+  for (const q of reportRecords) add(q);
+  return [...byKey.values()].map((x) => x.q);
+}
+function quotaSamplePath() {
+  return process.env.OMT_QUOTA_SAMPLE_LOG || join(homedir(), ".oh-my-tokens", "quota-samples.jsonl");
+}
+function groupedTodayUsage(records, provider) {
+  const measured = records.filter(
+    (r) => r.provider === provider && r.window === "today" && r.metricType === "measured_tokens",
+  );
+  const costs = records.filter(
+    (r) => r.provider === provider && r.window === "today" && r.metricType === "estimated_cost",
+  );
+  const models = measured.map((r) => {
+    const inputTokens = Number(r.inputTokens) || 0;
+    const outputTokens = Number(r.outputTokens) || 0;
+    const cacheTokens = Number(r.cacheTokens) || 0;
+    return {
+      model: r.model || null,
+      requests: Number(r.requests) || 0,
+      inputTokens,
+      outputTokens,
+      cacheTokens,
+      totalTokens: inputTokens + outputTokens + cacheTokens,
+    };
+  });
+  return {
+    requests: models.reduce((s, r) => s + r.requests, 0),
+    inputTokens: models.reduce((s, r) => s + r.inputTokens, 0),
+    outputTokens: models.reduce((s, r) => s + r.outputTokens, 0),
+    cacheTokens: models.reduce((s, r) => s + r.cacheTokens, 0),
+    totalTokens: models.reduce((s, r) => s + r.totalTokens, 0),
+    estimatedCostUSD: Math.round(costs.reduce((s, r) => s + (Number(r.costUSD) || 0), 0) * 1e6) / 1e6,
+    models,
+  };
+}
+function writeQuotaSamples(report, records, quotaRecords) {
+  if (process.env.OMT_DISABLE_QUOTA_SAMPLING === "1") return;
+  const sampledAt = report.generatedAt || new Date().toISOString();
+  const lines = [];
+  for (const provider of PROVIDER_ORDER) {
+    const providerQuota = quotaRecords.filter((q) => q.provider === provider);
+    const today = groupedTodayUsage(records, provider);
+    if (!providerQuota.length && !today.totalTokens && !today.requests) continue;
+    const quota = {};
+    for (const q of providerQuota) {
+      const label = q.windowLabel || "usage";
+      quota[label] = {
+        usedPercent: Number(q.usedPercent) || 0,
+        resetsAt: q.resetsAt || null,
+        source: q.source || null,
+        updatedAt: q.updatedAt || null,
+      };
+    }
+    lines.push(JSON.stringify({
+      sampledAt,
+      provider,
+      planType: providerQuota.find((q) => q.planType)?.planType || null,
+      quota,
+      today: {
+        requests: today.requests,
+        inputTokens: today.inputTokens,
+        outputTokens: today.outputTokens,
+        cacheTokens: today.cacheTokens,
+        totalTokens: today.totalTokens,
+        estimatedCostUSD: today.estimatedCostUSD,
+      },
+      models: today.models,
+    }));
+  }
+  if (!lines.length) return;
+  try {
+    const p = quotaSamplePath();
+    mkdirSync(dirname(p), { recursive: true });
+    appendFileSync(p, lines.join("\n") + "\n", "utf8");
+  } catch {
   }
 }
 // Standalone web-fetched token/cost usage (currently Cursor), written by refresh-quota.js.
@@ -155,13 +253,15 @@ const line = (s = "") => out.push(s);
   line("---");
   line(`oh-my-tokens · today |${item({ color: COL.dim, size: 11 })}`);
 
-  // ----- plan usage % (login-gated; from the popup-written quota cache) -----
+  // ----- plan usage % (popup-written cache + any fresher host quota records) -----
   const quota = readQuotaCache();
-  if (quota.records.length) {
+  const quotaRecords = mergeQuotaRecords(quota, recs);
+  writeQuotaSamples(report, recs, quotaRecords);
+  if (quotaRecords.length) {
     line("---");
     line(`PLAN USAGE |${item({ color: COL.muted, size: 10 })}`);
     const byProv = {};
-    for (const q of quota.records) (byProv[q.provider] ??= []).push(q);
+    for (const q of quotaRecords) (byProv[q.provider] ??= []).push(q);
     for (const p of PROVIDER_ORDER) {
       if (!byProv[p]) continue;
       const recs = byProv[p];

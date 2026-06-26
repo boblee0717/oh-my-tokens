@@ -87,9 +87,11 @@ test("surfaces the latest rate_limits as quota_percent records (5h + weekly)", a
   assert.equal(five.provider, "codex");
   assert.equal(five.model, null);
   assert.ok(five.resetsAt);
+  assert.equal(five.updatedAt, "2026-05-26T10:05:00.000Z");
 
   const weekly = quota.find((q) => q.windowLabel === "Weekly");
   assert.equal(weekly.usedPercent, 42);
+  assert.equal(weekly.updatedAt, "2026-05-26T10:05:00.000Z");
 });
 
 test("credits plan (null primary/secondary) surfaces a credits balance record", async () => {

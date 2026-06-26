@@ -2,14 +2,16 @@
 
 Key decisions and incident records shared across agent sessions.
 
-## PUSH POLICY (2026-05-26, set by Bob)
+## PUSH POLICY (2026-06-26, updated by Bob)
 
-**Only `claudeOpus` pushes to this repo (master and all branches).** All agents on this
-machine share the same `boblee0717` SSH identity, so GitHub can't enforce it — this is a
-**convention every agent must follow**. Other agents (Cherry, openDSFlashV4, …): do NOT
-`git push`. Do reviews, real-browser verification, and endpoint/issue investigation, then
-hand the diff/patch or a precise description to claudeOpus, who integrates and pushes.
-(Rationale: avoids the repeated branch/master collisions seen 2026-05-26 — logo, manifest key.)
+**`claudeOpus` and Codex may push to this repo (master and all branches).** All agents on this
+machine share the same `boblee0717` SSH identity, so GitHub can't enforce this — it is a
+**convention every agent must follow**. Codex should verify tests and inspect the final diff
+before pushing. Other agents (Cherry, openDSFlashV4, …): do NOT `git push`. They should do
+reviews, real-browser verification, and endpoint/issue investigation, then hand the diff/patch
+or a precise description to claudeOpus or Codex, who integrates and pushes.
+(Rationale: avoids the repeated branch/master collisions seen 2026-05-26 — logo, manifest key,
+while allowing Bob's active Codex sessions to ship verified local fixes directly.)
 
 ## 2026-05-27: Cursor integration & web-login prompts
 

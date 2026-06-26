@@ -239,11 +239,14 @@ export async function parseCodexUsage(opts = {}) {
   if (latestRL?.rateLimits) {
     const rl = latestRL.rateLimits;
     const plan = typeof rl.plan_type === "string" ? rl.plan_type : null;
+    const rateLimitsUpdatedAt = latestRL.rateLimitsTs
+      ? new Date(latestRL.rateLimitsTs).toISOString()
+      : updatedAt;
     for (const win of [rl.primary, rl.secondary]) {
-      const rec = quotaRecord(source, win, plan, updatedAt);
+      const rec = quotaRecord(source, win, plan, rateLimitsUpdatedAt);
       if (rec) records.push(rec);
     }
-    const creditsRec = creditsRecord(source, rl.credits, plan, updatedAt);
+    const creditsRec = creditsRecord(source, rl.credits, plan, rateLimitsUpdatedAt);
     if (creditsRec) records.push(creditsRec);
   }
 
