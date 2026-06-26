@@ -106,6 +106,19 @@ For DeepSeek balance: `install.sh --deepseek-key sk-...`, the extension Options 
 - **Extension:** open the popup — if only the bundled **sample** data shows, the host isn't
   connected; reload the extension and re-check.
 
+### Updates
+
+When the installed checkout is behind its upstream, both surfaces show an update reminder:
+
+- **Chrome popup:** click **Update** in the banner. The native host fetches the repo,
+  fast-forwards only, reinstalls the local host runtime, and then the extension reloads
+  best-effort. If the unpacked extension does not reopen, reload it from `chrome://extensions`.
+- **macOS menu bar:** open the 🎫 dropdown and click **Update now**. SwiftBar runs the same
+  local updater and refreshes the menu.
+
+The updater refuses to run when the source checkout has local changes. It never force-resets
+or stashes your work.
+
 ### Show only the tools you use
 
 Don't use one of the providers? Hide it from the **pills at the top of the popup** or the

@@ -1,5 +1,6 @@
 import { buildUsageReport } from "./report.js";
 import { mergeQuotaCache } from "./quota-cache.js";
+import { checkUpdate, applyUpdate } from "./update-manager.js";
 
 const HOST_VERSION = "0.0.0-m5";
 const MAX_MESSAGE = 64 * 1024 * 1024;
@@ -70,6 +71,19 @@ async function main() {
     const providers = [...new Set(pushed.map((r) => r.provider))];
     await mergeQuotaCache(pushed, providers);
     await writeMessage({ ok: true, saved: pushed.length });
+    process.exitCode = 0;
+    return;
+  }
+
+  if (req && req.type === "checkUpdate") {
+    const update = await checkUpdate();
+    await writeMessage({ ok: true, update });
+    process.exitCode = 0;
+    return;
+  }
+
+  if (req && req.type === "applyUpdate") {
+    await writeMessage(await applyUpdate());
     process.exitCode = 0;
     return;
   }

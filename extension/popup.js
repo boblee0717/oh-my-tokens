@@ -1,8 +1,9 @@
-import { getUsageReport, DEFAULT_HOST_NAME, saveQuotaToHost } from "./usage-client.js";
+import { applyUpdate, getUsageReport, DEFAULT_HOST_NAME, saveQuotaToHost } from "./usage-client.js";
 import { fetchClaudeQuota } from "./claude-web.js";
 import { fetchDeepSeekUsage } from "./deepseek-usage.js";
 import { fetchCursorUsage } from "./cursor-web.js";
 import { fetchCodexQuota } from "./codex-web.js";
+import { updateBannerModel } from "./update-ui.js";
 
 const PROVIDER_NAMES = {
   "claude-code": "Claude Code",
@@ -59,6 +60,7 @@ function formatReset(iso) {
 
 let report = null;
 let currentWindow = "7d";
+let updateState = null;
 // provider → login URL, for web sources that report the user isn't signed in.
 let loginPrompts = {};
 const PREVIEW_TEXT = "Preview data — the local host isn't connected yet. See the README to install it.";
@@ -206,6 +208,7 @@ function renderProviderFilter() {
 
 function render() {
   renderProviderFilter();
+  renderUpdateBanner();
   const cards = document.getElementById("cards");
   const status = document.getElementById("status");
   const banner = document.getElementById("preview-banner");
@@ -249,6 +252,22 @@ function render() {
   status.textContent = `${report._source === "sample" ? "sample" : "updated"} ${when}`;
 }
 
+function renderUpdateBanner() {
+  const banner = document.getElementById("update-banner");
+  const title = document.getElementById("update-title");
+  const detail = document.getElementById("update-detail");
+  const action = document.getElementById("update-action");
+  if (!banner || !title || !detail || !action) return;
+  const model = updateBannerModel(updateState || report?.update);
+  banner.classList.toggle("hidden", !model.visible);
+  banner.classList.toggle("warn", model.tone === "warn");
+  banner.classList.toggle("success", model.tone === "success");
+  title.textContent = model.title;
+  detail.textContent = model.detail;
+  action.hidden = !model.canUpdate;
+  action.disabled = !model.canUpdate;
+}
+
 async function load() {
   const now = new Date();
   document.getElementById("greeting").textContent = greeting(now);
@@ -270,6 +289,7 @@ async function load() {
     hostName: settings.hostName,
     deepseekApiKey: settings.deepseekApiKey,
   });
+  updateState = report.update || null;
   render();
 
   // Web-sourced data (not from local logs / native host). Skipped in sample/preview mode
@@ -371,6 +391,30 @@ document.getElementById("provider-filter").addEventListener("click", async (e) =
 });
 
 document.getElementById("refresh").addEventListener("click", load);
+document.getElementById("update-action").addEventListener("click", async () => {
+  const settings = await getSettings();
+  updateState = { status: "applying" };
+  renderUpdateBanner();
+  try {
+    const result = await applyUpdate({ hostName: settings.hostName, nativeTimeoutMs: 120000 });
+    updateState = result.update || {
+      status: result.ok ? "applied" : "apply_failed",
+      message: result.error || "Update failed.",
+    };
+    renderUpdateBanner();
+    if (result.ok) {
+      setTimeout(() => {
+        try { chrome.runtime.reload(); } catch {}
+      }, 1200);
+    }
+  } catch (e) {
+    updateState = {
+      status: "apply_failed",
+      message: e instanceof Error ? e.message : String(e),
+    };
+    renderUpdateBanner();
+  }
+});
 document.getElementById("open-options").addEventListener("click", (e) => {
   e.preventDefault();
   try { chrome.runtime.openOptionsPage(); } catch {}

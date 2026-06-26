@@ -13,8 +13,28 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$DIR/.." && pwd)"
 SUPPORTDIR="$HOME/.oh-my-tokens/menubar"
 HOST_CLI="$HOME/.oh-my-tokens/native-host/host/index.js"
+
+write_install_metadata() {
+  local installed="$1"
+  local helper="$REPO_ROOT/host/install-metadata.js"
+  [ -f "$helper" ] || helper="$HOME/.oh-my-tokens/native-host/host/install-metadata.js"
+  local node_bin
+  node_bin="$(command -v node || true)"
+  [ -n "$node_bin" ] && [ -f "$helper" ] || return 0
+  if [ "$installed" = "1" ]; then
+    OMT_SOURCE_ROOT="$REPO_ROOT" \
+    OMT_MENUBAR_INSTALLED="$installed" \
+    OMT_MENUBAR_INSTALLED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+      "$node_bin" "$helper" >/dev/null 2>&1 || true
+  else
+    OMT_SOURCE_ROOT="$REPO_ROOT" \
+    OMT_MENUBAR_INSTALLED="$installed" \
+      "$node_bin" "$helper" >/dev/null 2>&1 || true
+  fi
+}
 
 # --uninstall: remove just our plugin + formatter (leaves SwiftBar and any other
 # plugins untouched; never auto-removes SwiftBar since the user may rely on it).
@@ -22,6 +42,7 @@ if [ "${1:-}" = "--uninstall" ]; then
   PD="$(defaults read com.ameba.SwiftBar PluginDirectory 2>/dev/null || echo "$HOME/.oh-my-tokens/swiftbar-plugins")"
   rm -f "$PD/oh-my-tokens.1m.sh"
   rm -rf "$SUPPORTDIR"
+  write_install_metadata 0
   echo "Removed oh-my-tokens menu-bar plugin from $PD and $SUPPORTDIR."
   echo "(SwiftBar left installed. To remove it too: brew uninstall --cask swiftbar)"
   osascript -e 'quit app "SwiftBar"' >/dev/null 2>&1 || true
@@ -74,8 +95,9 @@ fi
 cp "$DIR/oh-my-tokens.1m.sh" "$PLUGINDIR/oh-my-tokens.1m.sh"
 chmod +x "$PLUGINDIR/oh-my-tokens.1m.sh"
 echo "==> Installed plugin: $PLUGINDIR/oh-my-tokens.1m.sh"
+write_install_metadata 1
 
 # 3. (re)launch SwiftBar so it picks up the plugin
 osascript -e 'quit app "SwiftBar"' >/dev/null 2>&1 || true
-open -a SwiftBar
+open -a SwiftBar >/dev/null 2>&1 || true
 echo "==> Launched SwiftBar. Look for the 🎫 item in your menu bar (refreshes every 1m)."

@@ -179,6 +179,9 @@ function readUsageCache() {
     return [];
   }
 }
+function updateScriptPath() {
+  return process.env.OMT_UPDATE_SCRIPT || join(homedir(), ".oh-my-tokens", "native-host", "host", "update-now.sh");
+}
 function ageStr(savedAt) {
   if (!savedAt) return "";
   const ms = Date.now() - new Date(savedAt).getTime();
@@ -213,6 +216,30 @@ function readStdin() {
 
 const out = [];
 const line = (s = "") => out.push(s);
+
+function renderUpdate(update) {
+  if (!update || update.status === "current") return;
+  if (update.status === "available") {
+    line("---");
+    line(`UPDATE AVAILABLE |${item({ color: COL.warn, size: 10 })}`);
+    const refs = update.localRef && update.remoteRef ? ` ${update.localRef} -> ${update.remoteRef}` : "";
+    line(`oh-my-tokens${refs} |${item({ color: COL.primary, size: 12 })}`);
+    if (update.canApply !== false) {
+      line(`Update now | bash=${updateScriptPath()} refresh=true terminal=false sfimage=arrow.down.circle`);
+    } else if (update.message) {
+      line(`${String(update.message).slice(0, 100)} |${item({ color: COL.dim, size: 11 })}`);
+    }
+    return;
+  }
+}
+
+function updateFooterSuffix(update) {
+  if (!update || update.status === "current" || update.status === "available") return "";
+  if (update.status === "dirty") return " · update blocked: local changes";
+  if (update.status === "apply_failed") return " · update failed";
+  if (update.status === "checking_failed" || update.status === "not_git_repo") return " · update check failed";
+  return "";
+}
 
 (async () => {
   let report;
@@ -338,12 +365,13 @@ const line = (s = "") => out.push(s);
   // ----- footer -----
   line("---");
   if (anyEstimated) {
-    line(`⚠︎ costs are estimated, not billing |${item({ color: COL.warn, size: 11 })}`);
+    line(`Estimated costs, not billing |${item({ color: COL.warn, size: 11 })}`);
   }
   if (errs.length) {
     line(`⚠ ${errs.length} source error(s) |${item({ color: COL.high, size: 11 })}`);
     for (const e of errs) line(`--${e.provider}: ${String(e.message).slice(0, 100)} |${item({ color: COL.dim, size: 11, font: "Menlo" })}`);
   }
+  renderUpdate(report.update);
   // Show the update time in the user's LOCAL timezone (like the reset times), not UTC.
   const gd = report.generatedAt ? new Date(report.generatedAt) : null;
   const gen = gd && !Number.isNaN(gd.getTime())
@@ -351,8 +379,8 @@ const line = (s = "") => out.push(s);
         month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short",
       })
     : "";
-  line(`Updated ${gen} |${item({ color: COL.dim, size: 11 })}`);
-  line("Refresh | refresh=true sfimage=arrow.clockwise");
+  line(`Updated ${gen}${updateFooterSuffix(report.update)} |${item({ color: COL.dim, size: 11 })}`);
+  line("Refresh | refresh=true");
 
   process.stdout.write(out.join("\n") + "\n");
 })();

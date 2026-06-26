@@ -103,6 +103,12 @@ privacy controls can prevent Chrome's child process from opening the script. The
 speaks Chrome's length-prefixed stdio protocol: it reads one request and replies with the
 `UsageReport`. Verified locally end-to-end with a framed request/response.
 
+The installer also writes `~/.oh-my-tokens/install.json` with the source checkout, browser,
+extension ID, and menu-bar install state. Update reminders use that metadata to compare the
+checkout with its upstream. `{type:"checkUpdate"}` checks status, and `{type:"applyUpdate"}`
+does a fast-forward-only update followed by local runtime reinstall. Dirty worktrees are
+reported but never modified.
+
 Tests run against **desensitized synthetic fixtures** (`fixtures/`), not real logs, and
 cover dedup, cost estimation, unknown models, the synthetic/zero-token skip, time-window
 nesting (local day), tilde source, and the missing-dir case. Tests pin `TZ=UTC` so the

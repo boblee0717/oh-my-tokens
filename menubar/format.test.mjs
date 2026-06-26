@@ -245,3 +245,94 @@ test("appends quota samples with displayed quota and provider token totals", asy
     },
   ]);
 });
+
+test("renders update section with one-click update command", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "omt-format-update-"));
+  const quotaCache = join(dir, "quota-cache.json");
+  const usageCache = join(dir, "usage-cache.json");
+  const updateScript = join(dir, "update-now.sh");
+  await writeFile(quotaCache, JSON.stringify({ records: [] }));
+  await writeFile(usageCache, JSON.stringify({ records: [] }));
+
+  const out = await runFormat(
+    {
+      generatedAt: "2026-06-26T07:06:12.562Z",
+      errors: [],
+      records: [],
+      update: {
+        status: "available",
+        localRef: "be13e53",
+        remoteRef: "63d528c",
+        message: "Update available",
+        canApply: true,
+      },
+    },
+    { OMT_QUOTA_CACHE: quotaCache, OMT_USAGE_CACHE: usageCache, OMT_UPDATE_SCRIPT: updateScript },
+  );
+
+  assert.match(out, /UPDATE AVAILABLE/);
+  assert.match(out, /be13e53 -> 63d528c/);
+  assert.match(out, new RegExp(`Update now \\| bash=${updateScript.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} refresh=true`));
+});
+
+test("renders blocked update state inline with Updated footer", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "omt-format-update-blocked-"));
+  const quotaCache = join(dir, "quota-cache.json");
+  const usageCache = join(dir, "usage-cache.json");
+  await writeFile(quotaCache, JSON.stringify({ records: [] }));
+  await writeFile(usageCache, JSON.stringify({ records: [] }));
+
+  const out = await runFormat(
+    {
+      generatedAt: "2026-06-26T07:06:12.562Z",
+      errors: [],
+      records: [],
+      update: {
+        status: "dirty",
+        message: "Local changes present; automatic update is disabled",
+        canApply: false,
+      },
+    },
+    { OMT_QUOTA_CACHE: quotaCache, OMT_USAGE_CACHE: usageCache },
+  );
+
+  assert.doesNotMatch(out, /^Update check:/m);
+  assert.match(out, /Updated Jun 26, 03:06 PM GMT\+8 · update blocked: local changes/);
+});
+
+test("footer rows avoid icon gutter so text aligns cleanly", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "omt-format-footer-"));
+  const quotaCache = join(dir, "quota-cache.json");
+  const usageCache = join(dir, "usage-cache.json");
+  await writeFile(quotaCache, JSON.stringify({ records: [] }));
+  await writeFile(usageCache, JSON.stringify({ records: [] }));
+
+  const out = await runFormat(
+    {
+      generatedAt: "2026-06-26T07:06:12.562Z",
+      errors: [],
+      records: [
+        {
+          id: "codex:gpt-5.5:today:estimated_cost",
+          provider: "codex",
+          model: "gpt-5.5",
+          metricType: "estimated_cost",
+          window: "today",
+          costUSD: 2.75,
+          confidence: "low",
+        },
+      ],
+      update: {
+        status: "dirty",
+        message: "Local changes present; automatic update is disabled",
+      },
+    },
+    { OMT_QUOTA_CACHE: quotaCache, OMT_USAGE_CACHE: usageCache },
+  );
+
+  assert.match(out, /^Estimated costs, not billing \|/m);
+  assert.match(out, /^Updated Jun 26, 03:06 PM GMT\+8 · update blocked: local changes \|/m);
+  assert.match(out, /^Refresh \| refresh=true$/m);
+  assert.doesNotMatch(out, /sfimage=arrow\.clockwise/);
+  assert.doesNotMatch(out, /^⚠︎ costs are estimated/m);
+});

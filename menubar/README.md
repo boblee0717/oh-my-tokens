@@ -60,6 +60,9 @@ All costs are **estimates, not billing** (flagged in the dropdown).
 ## Scope / limits
 - Codex/Cursor costs use assumed/derived rates — directional, not invoices.
 - Quota % freshness: Cursor is live (standalone); Claude/Codex are popup-driven (see above).
+- Update checks are read from the native host's report and cached briefly so the 1-minute
+  menu refresh does not run `git fetch` every time. **Update now** performs a fast-forward
+  only and reinstalls the native host/menu-bar files.
 
 ## Uninstall
 ```bash

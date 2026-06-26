@@ -122,6 +122,25 @@ main { padding: 2px 14px 0; display: flex; flex-direction: column; gap: 8px; }
   margin: 0 14px; padding: 6px 9px; font-size: 11px;
   color: #8a6d1f; background: #fdf6e3; border: 1px solid #f2e3b3; border-radius: 8px;
 }
+.update-banner {
+  margin: 8px 14px 0; padding: 8px 9px; font-size: 11px;
+  display: flex; align-items: center; gap: 8px;
+  color: #1f4f8f; background: #eef5ff; border: 1px solid #c9ddff; border-radius: 8px;
+}
+.update-banner.warn {
+  color: #7a4f00; background: #fff7df; border-color: #f1dfad;
+}
+.update-banner.success {
+  color: #1a6b37; background: #eaf8ef; border-color: #bbe6c8;
+}
+.update-copy { flex: 1; min-width: 0; }
+.update-copy strong { display: block; font-size: 12px; }
+.update-copy span { display: block; color: currentColor; opacity: 0.82; overflow-wrap: anywhere; }
+.update-banner button {
+  border: 1px solid currentColor; color: inherit; background: transparent;
+  border-radius: 6px; padding: 3px 9px; font: inherit; font-weight: 600; cursor: pointer;
+}
+.update-banner button:disabled { opacity: 0.55; cursor: default; }
 .hidden { display: none; }
 .empty { color: var(--faint); text-align: center; padding: 14px 0; }
 .empty a { color: var(--accent); text-decoration: none; cursor: pointer; }

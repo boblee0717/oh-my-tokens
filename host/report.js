@@ -3,6 +3,7 @@ import { parseCodexUsage } from "./parsers/codex.js";
 import { parseDeepSeekUsage } from "./parsers/deepseek.js";
 import { parseCursorUsage } from "./parsers/cursor.js";
 import { estimateCostUSD } from "./pricing.js";
+import { getUpdateForReport } from "./update-manager.js";
 
 // Some parsers (e.g. Codex) emit token counts but not a cost. Fill in an estimated_cost
 // for any measured_tokens record that lacks one and whose model has a price table entry,
@@ -73,5 +74,18 @@ export async function buildUsageReport(hostVersion, opts = {}) {
     report.errors.push({ provider: "deepseek", message: String(e) });
   }
   report.records.push(...fillEstimatedCosts(report.records));
+  if (opts.includeUpdate !== false) {
+    try {
+      const update = await getUpdateForReport();
+      if (update) report.update = update;
+    } catch (e) {
+      report.update = {
+        status: "checking_failed",
+        checkedAt: new Date().toISOString(),
+        canApply: false,
+        message: String(e?.message || e),
+      };
+    }
+  }
   return report;
 }

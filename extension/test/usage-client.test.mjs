@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getUsageReport } from "../usage-client.js";
+import { applyUpdate, checkUpdate, getUsageReport } from "../usage-client.js";
 
 const sampleReport = {
   generatedAt: "2026-05-26T12:00:00.000Z",
@@ -124,6 +124,61 @@ test("uses sendNativeMessage for one-shot native host requests when available", 
       message: { type: "getUsage", deepseekApiKey: "sk-test" },
     });
     assert.equal(report._source, "native");
+  } finally {
+    globalThis.chrome = originalChrome;
+  }
+});
+
+test("checkUpdate sends a native checkUpdate request", async () => {
+  const originalChrome = globalThis.chrome;
+  let sent = null;
+
+  const runtime = {
+    lastError: null,
+    sendNativeMessage(hostName, message, callback) {
+      sent = { hostName, message };
+      queueMicrotask(() => callback({ ok: true, update: { status: "available" } }));
+    },
+  };
+
+  try {
+    globalThis.chrome = { runtime };
+
+    const result = await checkUpdate();
+
+    assert.deepEqual(sent, {
+      hostName: "com.ohmytokens.host",
+      message: { type: "checkUpdate" },
+    });
+    assert.equal(result.update.status, "available");
+  } finally {
+    globalThis.chrome = originalChrome;
+  }
+});
+
+test("applyUpdate sends a native applyUpdate request", async () => {
+  const originalChrome = globalThis.chrome;
+  let sent = null;
+
+  const runtime = {
+    lastError: null,
+    sendNativeMessage(hostName, message, callback) {
+      sent = { hostName, message };
+      queueMicrotask(() => callback({ ok: true, update: { status: "applied" }, steps: ["fetch"] }));
+    },
+  };
+
+  try {
+    globalThis.chrome = { runtime };
+
+    const result = await applyUpdate();
+
+    assert.deepEqual(sent, {
+      hostName: "com.ohmytokens.host",
+      message: { type: "applyUpdate" },
+    });
+    assert.equal(result.update.status, "applied");
+    assert.deepEqual(result.steps, ["fetch"]);
   } finally {
     globalThis.chrome = originalChrome;
   }

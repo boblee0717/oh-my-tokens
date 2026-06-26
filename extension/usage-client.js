@@ -17,7 +17,7 @@ function requestPayload(deepseekApiKey) {
   return payload;
 }
 
-function viaSendNativeMessage(hostName, deepseekApiKey, timeoutMs = DEFAULT_NATIVE_TIMEOUT_MS) {
+function viaSendNativeMessage(hostName, payload, timeoutMs = DEFAULT_NATIVE_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
     let settled = false;
     const timer = setTimeout(() => {
@@ -27,7 +27,7 @@ function viaSendNativeMessage(hostName, deepseekApiKey, timeoutMs = DEFAULT_NATI
     }, timeoutMs);
 
     try {
-      chrome.runtime.sendNativeMessage(hostName, requestPayload(deepseekApiKey), (msg) => {
+      chrome.runtime.sendNativeMessage(hostName, payload, (msg) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
@@ -51,7 +51,7 @@ function viaSendNativeMessage(hostName, deepseekApiKey, timeoutMs = DEFAULT_NATI
   });
 }
 
-function viaNativePort(hostName, deepseekApiKey, timeoutMs = DEFAULT_NATIVE_TIMEOUT_MS) {
+function viaNativePort(hostName, payload, timeoutMs = DEFAULT_NATIVE_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
     let settled = false;
     let port;
@@ -82,8 +82,20 @@ function viaNativePort(hostName, deepseekApiKey, timeoutMs = DEFAULT_NATIVE_TIME
       reject(new Error(chrome.runtime.lastError?.message || "native host disconnected"));
     });
 
-    port.postMessage(requestPayload(deepseekApiKey));
+    port.postMessage(payload);
   });
+}
+
+async function nativeRequest(hostName, payload, timeoutMs = DEFAULT_NATIVE_TIMEOUT_MS) {
+  if (
+    typeof chrome === "undefined" ||
+    !(chrome.runtime?.sendNativeMessage || chrome.runtime?.connectNative)
+  ) {
+    throw new Error("native messaging API unavailable in this context");
+  }
+  return chrome.runtime?.sendNativeMessage
+    ? await viaSendNativeMessage(hostName, payload, timeoutMs)
+    : await viaNativePort(hostName, payload, timeoutMs);
 }
 
 // Push the browser-fetched quota_percent records to the native host so it can cache them
@@ -127,9 +139,7 @@ export async function getUsageReport({
     (chrome.runtime?.sendNativeMessage || chrome.runtime?.connectNative)
   ) {
     try {
-      const report = chrome.runtime?.sendNativeMessage
-        ? await viaSendNativeMessage(hostName, deepseekApiKey, nativeTimeoutMs)
-        : await viaNativePort(hostName, deepseekApiKey, nativeTimeoutMs);
+      const report = await nativeRequest(hostName, requestPayload(deepseekApiKey), nativeTimeoutMs);
       report._source = "native";
       return report;
     } catch (e) {
@@ -140,4 +150,18 @@ export async function getUsageReport({
   const report = await viaSample();
   report._nativeError = nativeError;
   return report;
+}
+
+export async function checkUpdate({
+  hostName = DEFAULT_HOST_NAME,
+  nativeTimeoutMs = DEFAULT_NATIVE_TIMEOUT_MS,
+} = {}) {
+  return nativeRequest(hostName, { type: "checkUpdate" }, nativeTimeoutMs);
+}
+
+export async function applyUpdate({
+  hostName = DEFAULT_HOST_NAME,
+  nativeTimeoutMs = DEFAULT_NATIVE_TIMEOUT_MS,
+} = {}) {
+  return nativeRequest(hostName, { type: "applyUpdate" }, nativeTimeoutMs);
 }
