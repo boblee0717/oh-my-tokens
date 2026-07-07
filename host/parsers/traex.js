@@ -1,0 +1,294 @@
+import { existsSync } from "node:fs";
+import { readdir, readFile } from "node:fs/promises";
+import { join, basename } from "node:path";
+import { homedir } from "node:os";
+import { windowCutoff, tildePath } from "../util.js";
+
+async function findJsonl(dir) {
+  const out = [];
+  let items;
+  try {
+    items = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const it of items) {
+    const p = join(dir, it.name);
+    if (it.isDirectory()) out.push(...(await findJsonl(p)));
+    else if (it.isFile() && it.name.endsWith(".jsonl")) out.push(p);
+  }
+  return out;
+}
+
+function num(v) {
+  return typeof v === "number" && Number.isFinite(v) ? v : 0;
+}
+
+function sessionIdFromFilename(file) {
+  const name = basename(file).replace(/\.jsonl$/, "");
+  const parts = name.split("-");
+  return parts.length >= 5 ? parts.slice(-5).join("-") : name;
+}
+
+function unique(items) {
+  return [...new Set(items.filter(Boolean))];
+}
+
+function defaultBaseDir() {
+  const candidates = unique([
+    process.env.TRAE_CLI_HOME,
+    process.env.TRAE_HOME,
+    process.env.TRAE_HOME ? join(process.env.TRAE_HOME, "cli") : null,
+    join(homedir(), ".trae", "cli"),
+  ]);
+  return candidates.find((dir) => existsSync(join(dir, "sessions"))) ?? candidates[0];
+}
+
+function parseSession(file, text) {
+  let sessionId = sessionIdFromFilename(file);
+  let model = "unknown";
+  let modelTs = 0;
+  const events = [];
+  let rateLimits = null;
+  let rateLimitsTs = 0;
+
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    let o;
+    try {
+      o = JSON.parse(trimmed);
+    } catch {
+      continue;
+    }
+    const type = o?.type;
+    const payload = o?.payload ?? {};
+    if (type === "session_meta" && payload.id) {
+      sessionId = payload.id;
+    } else if (type === "turn_context" && payload.model) {
+      model = payload.model;
+      const ts = Date.parse(o.timestamp ?? "");
+      modelTs = Number.isNaN(ts) ? modelTs : ts;
+    } else if (type === "event_msg" && payload.type === "token_count") {
+      const ts = Date.parse(o.timestamp ?? "");
+      const tsMs = Number.isNaN(ts) ? 0 : ts;
+      const total = payload.info?.total_token_usage;
+      if (total) {
+        const cached = num(total.cached_input_tokens);
+        const cacheCreation = num(total.cache_creation_input_tokens);
+        const input = num(total.input_tokens);
+        const output = Math.max(num(total.output_tokens), num(total.total_tokens) - input);
+        events.push({
+          ts: tsMs,
+          inputTokens: Math.max(0, input - cached - cacheCreation),
+          cacheTokens: cached + cacheCreation,
+          outputTokens: output,
+          totalTokens: num(total.total_tokens),
+        });
+      }
+      if (payload.rate_limits && tsMs >= rateLimitsTs) {
+        rateLimits = payload.rate_limits;
+        rateLimitsTs = tsMs;
+      }
+    }
+  }
+
+  if (!events.length) return null;
+  events.sort((a, b) => a.ts - b.ts || a.totalTokens - b.totalTokens);
+  const final = events.reduce((best, event) => (event.totalTokens >= best.totalTokens ? event : best), events[0]);
+  return {
+    sessionId,
+    model,
+    modelTs,
+    events,
+    totalTokens: final.totalTokens,
+    rateLimits,
+    rateLimitsTs,
+  };
+}
+
+function mergeEvents(events) {
+  const byKey = new Map();
+  for (const event of events) {
+    byKey.set(
+      `${event.ts}:${event.totalTokens}:${event.inputTokens}:${event.cacheTokens}:${event.outputTokens}`,
+      event,
+    );
+  }
+  return [...byKey.values()].sort((a, b) => a.ts - b.ts || a.totalTokens - b.totalTokens);
+}
+
+function mergeSession(a, b) {
+  const events = mergeEvents([...a.events, ...b.events]);
+  const latestRateLimits = b.rateLimitsTs >= a.rateLimitsTs ? b : a;
+  const latestModel = b.modelTs >= a.modelTs ? b : a;
+  return {
+    sessionId: a.sessionId,
+    model: latestModel.model,
+    modelTs: latestModel.modelTs,
+    events,
+    totalTokens: Math.max(a.totalTokens, b.totalTokens),
+    rateLimits: latestRateLimits.rateLimits,
+    rateLimitsTs: latestRateLimits.rateLimitsTs,
+  };
+}
+
+function sessionDeltaForWindow(session, cutoff, nowMs) {
+  let before = null;
+  let after = null;
+  for (const event of session.events) {
+    if (event.ts > nowMs) continue;
+    if (event.ts < cutoff) {
+      before = event;
+    } else {
+      after = event;
+    }
+  }
+  if (!after) return null;
+  const inputTokens = Math.max(0, after.inputTokens - (before?.inputTokens ?? 0));
+  const cacheTokens = Math.max(0, after.cacheTokens - (before?.cacheTokens ?? 0));
+  const outputTokens = Math.max(0, after.outputTokens - (before?.outputTokens ?? 0));
+  if (inputTokens + cacheTokens + outputTokens === 0) return null;
+  return { inputTokens, cacheTokens, outputTokens };
+}
+
+function windowLabel(minutes) {
+  if (minutes === 300) return "5h";
+  if (minutes === 10080) return "Weekly";
+  if (minutes % 1440 === 0) return `${minutes / 1440}d`;
+  if (minutes % 60 === 0) return `${minutes / 60}h`;
+  return `${minutes}m`;
+}
+
+function quotaRecord(source, win, planType, updatedAt) {
+  if (!win || typeof win.used_percent !== "number") return null;
+  const label = windowLabel(num(win.window_minutes));
+  const resetsAt = win.resets_at ? new Date(num(win.resets_at) * 1000).toISOString() : undefined;
+  return {
+    id: `traex::quota:${label.toLowerCase()}:quota_percent`,
+    provider: "traex",
+    model: null,
+    metricType: "quota_percent",
+    source,
+    window: "today",
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheTokens: 0,
+    requests: 0,
+    costUSD: null,
+    balance: null,
+    currency: null,
+    usedPercent: win.used_percent,
+    windowLabel: label,
+    resetsAt,
+    planType: planType ?? undefined,
+    updatedAt,
+    confidence: "high",
+    warnings: [],
+  };
+}
+
+function creditsRecord(source, credits, planType, updatedAt) {
+  if (!credits || typeof credits !== "object") return null;
+  const unlimited = credits.unlimited === true;
+  if (!unlimited && credits.balance == null) return null;
+  const bal = Number(credits.balance);
+  if (!unlimited && !Number.isFinite(bal)) return null;
+  return {
+    id: "traex::credits:balance",
+    provider: "traex",
+    model: null,
+    metricType: "balance",
+    source,
+    window: "today",
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheTokens: 0,
+    requests: 0,
+    costUSD: null,
+    balance: unlimited ? null : bal,
+    currency: "credits",
+    planType: planType ?? undefined,
+    updatedAt,
+    confidence: "high",
+    warnings: unlimited ? ["unlimited credits"] : [],
+  };
+}
+
+export async function parseTraeXUsage(opts = {}) {
+  const baseDir = opts.baseDir ?? defaultBaseDir();
+  const now = opts.now ?? new Date();
+  const windows = opts.windows ?? ["today", "7d", "30d"];
+  const source = tildePath(baseDir);
+
+  const files = await findJsonl(join(baseDir, "sessions"));
+
+  const bySession = new Map();
+  for (const f of files) {
+    let session = null;
+    try {
+      session = parseSession(f, await readFile(f, "utf8"));
+    } catch {
+      continue;
+    }
+    if (!session) continue;
+    const prev = bySession.get(session.sessionId);
+    bySession.set(session.sessionId, prev ? mergeSession(prev, session) : session);
+  }
+  const sessions = [...bySession.values()];
+
+  const records = [];
+  const updatedAt = now.toISOString();
+
+  let latestRL = null;
+  for (const s of sessions) {
+    if (s.rateLimits && (!latestRL || s.rateLimitsTs > latestRL.rateLimitsTs)) latestRL = s;
+  }
+  if (latestRL?.rateLimits) {
+    const rl = latestRL.rateLimits;
+    const plan = typeof rl.plan_type === "string" ? rl.plan_type : null;
+    const rateLimitsUpdatedAt = latestRL.rateLimitsTs
+      ? new Date(latestRL.rateLimitsTs).toISOString()
+      : updatedAt;
+    for (const win of [rl.primary, rl.secondary]) {
+      const rec = quotaRecord(source, win, plan, rateLimitsUpdatedAt);
+      if (rec) records.push(rec);
+    }
+    const creditsRec = creditsRecord(source, rl.credits, plan, rateLimitsUpdatedAt);
+    if (creditsRec) records.push(creditsRec);
+  }
+
+  for (const window of windows) {
+    const cutoff = windowCutoff(window, now);
+    const nowMs = now.getTime();
+    const byModel = new Map();
+    for (const s of sessions) {
+      const delta = sessionDeltaForWindow(s, cutoff, nowMs);
+      if (!delta) continue;
+      const arr = byModel.get(s.model) ?? [];
+      arr.push(delta);
+      byModel.set(s.model, arr);
+    }
+    for (const [model, group] of byModel) {
+      records.push({
+        id: `traex:${model}:${window}:measured_tokens`,
+        provider: "traex",
+        model,
+        metricType: "measured_tokens",
+        source,
+        window,
+        inputTokens: group.reduce((s, e) => s + e.inputTokens, 0),
+        outputTokens: group.reduce((s, e) => s + e.outputTokens, 0),
+        cacheTokens: group.reduce((s, e) => s + e.cacheTokens, 0),
+        requests: group.length,
+        costUSD: null,
+        balance: null,
+        currency: null,
+        updatedAt,
+        confidence: "high",
+        warnings: ["`requests` counts sessions, not individual turns"],
+      });
+    }
+  }
+  return records;
+}

@@ -2,7 +2,7 @@
 # oh-my-tokens — SwiftBar/xbar plugin. Refreshes every 1 minute (filename ".1m.").
 #
 # <xbar.title>oh-my-tokens</xbar.title>
-# <xbar.desc>AI coding tool usage (Claude Code / Codex / Cursor / DeepSeek) in the menu bar.</xbar.desc>
+# <xbar.desc>AI coding tool usage (Claude Code / Codex / TraeX / Cursor / DeepSeek) in the menu bar.</xbar.desc>
 # <xbar.author>oh-my-tokens</xbar.author>
 # <swiftbar.hideAbout>false</swiftbar.hideAbout>
 #

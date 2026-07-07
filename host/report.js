@@ -2,6 +2,7 @@ import { parseClaudeUsage } from "./parsers/claude.js";
 import { parseCodexUsage } from "./parsers/codex.js";
 import { parseDeepSeekUsage } from "./parsers/deepseek.js";
 import { parseCursorUsage } from "./parsers/cursor.js";
+import { parseTraeXUsage } from "./parsers/traex.js";
 import { estimateCostUSD } from "./pricing.js";
 import { getUpdateForReport } from "./update-manager.js";
 
@@ -62,6 +63,11 @@ export async function buildUsageReport(hostVersion, opts = {}) {
     report.records.push(...(await parseCodexUsage()));
   } catch (e) {
     report.errors.push({ provider: "codex", message: String(e) });
+  }
+  try {
+    report.records.push(...(await parseTraeXUsage()));
+  } catch (e) {
+    report.errors.push({ provider: "traex", message: String(e) });
   }
   try {
     report.records.push(...(await parseCursorUsage()));

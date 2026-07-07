@@ -47,6 +47,28 @@
       "warnings": []
     },
     {
+      "id": "traex::quota:5h:quota_percent",
+      "provider": "traex",
+      "model": null,
+      "metricType": "quota_percent",
+      "source": "~/.trae/cli",
+      "window": "today",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "cacheTokens": 0,
+      "requests": 0,
+      "costUSD": null,
+      "balance": null,
+      "currency": null,
+      "usedPercent": 32,
+      "windowLabel": "5h",
+      "resetsAt": "2026-05-26T19:06:00.000Z",
+      "planType": "trae-pro",
+      "updatedAt": "2026-05-26T12:00:00.000Z",
+      "confidence": "high",
+      "warnings": []
+    },
+    {
       "id": "claude-code::quota:5h:quota_percent",
       "provider": "claude-code",
       "model": null,
@@ -143,6 +165,24 @@
       "updatedAt": "2026-05-26T12:00:00.000Z",
       "confidence": "high",
       "warnings": ["cost not estimated for Codex (no authoritative price source for gpt-5.x yet)", "`requests` counts sessions, not individual turns"]
+    },
+    {
+      "id": "traex:GPT-5.5:7d:measured_tokens",
+      "provider": "traex",
+      "model": "GPT-5.5",
+      "metricType": "measured_tokens",
+      "source": "~/.trae/cli",
+      "window": "7d",
+      "inputTokens": 120000,
+      "outputTokens": 42000,
+      "cacheTokens": 680000,
+      "requests": 9,
+      "costUSD": null,
+      "balance": null,
+      "currency": null,
+      "updatedAt": "2026-05-26T12:00:00.000Z",
+      "confidence": "high",
+      "warnings": ["`requests` counts sessions, not individual turns"]
     },
     {
       "id": "deepseek::today:balance:cny",

@@ -41,6 +41,8 @@ test(`${wrapper} returns one framed UsageReport over stdio`, async () => {
     ...process.env,
     HOME: home,
     USERPROFILE: home,
+    TRAE_CLI_HOME: join(home, ".trae", "cli"),
+    TRAE_HOME: join(home, ".trae"),
     DEEPSEEK_API_KEY: "",
     TZ: "UTC",
   });

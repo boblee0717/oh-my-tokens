@@ -336,3 +336,59 @@ test("footer rows avoid icon gutter so text aligns cleanly", async () => {
   assert.doesNotMatch(out, /sfimage=arrow\.clockwise/);
   assert.doesNotMatch(out, /^⚠︎ costs are estimated/m);
 });
+
+test("renders and samples TraeX provider records", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "omt-format-traex-"));
+  const quotaCache = join(dir, "quota-cache.json");
+  const usageCache = join(dir, "usage-cache.json");
+  const sampleLog = join(dir, "quota-samples.jsonl");
+  await writeFile(usageCache, JSON.stringify({ records: [] }));
+  await writeFile(quotaCache, JSON.stringify({ records: [] }));
+
+  const out = await runFormat(
+    {
+      generatedAt: "2026-07-06T12:00:00.000Z",
+      errors: [],
+      records: [
+        {
+          id: "traex::quota:5h:quota_percent",
+          provider: "traex",
+          metricType: "quota_percent",
+          usedPercent: 32,
+          windowLabel: "5h",
+          resetsAt: "2026-07-06T14:00:00.000Z",
+          planType: "trae-pro",
+          source: "~/.trae/cli",
+          updatedAt: "2026-07-06T10:05:00.000Z",
+        },
+        {
+          id: "traex:GPT-5.5:today:measured_tokens",
+          provider: "traex",
+          model: "GPT-5.5",
+          metricType: "measured_tokens",
+          window: "today",
+          requests: 1,
+          inputTokens: 1100,
+          outputTokens: 500,
+          cacheTokens: 700,
+        },
+      ],
+    },
+    {
+      OMT_QUOTA_CACHE: quotaCache,
+      OMT_USAGE_CACHE: usageCache,
+      OMT_DISABLE_QUOTA_SAMPLING: "0",
+      OMT_QUOTA_SAMPLE_LOG: sampleLog,
+    },
+  );
+
+  assert.match(out, /TraeX · trae-pro/);
+  assert.match(out, /GPT-5\.5\s+1 req/);
+
+  const lines = (await readFile(sampleLog, "utf8")).trim().split("\n");
+  assert.equal(lines.length, 1);
+  const sample = JSON.parse(lines[0]);
+  assert.equal(sample.provider, "traex");
+  assert.equal(sample.quota["5h"].usedPercent, 32);
+  assert.equal(sample.today.totalTokens, 2300);
+});

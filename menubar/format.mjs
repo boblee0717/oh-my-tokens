@@ -14,10 +14,11 @@ import { dirname, join } from "node:path";
 const PROVIDER_LABEL = {
   "claude-code": "Claude Code",
   codex: "Codex",
+  traex: "TraeX",
   cursor: "Cursor",
   deepseek: "DeepSeek",
 };
-const PROVIDER_ORDER = ["claude-code", "codex", "cursor", "deepseek"];
+const PROVIDER_ORDER = ["claude-code", "codex", "traex", "cursor", "deepseek"];
 
 function abbr(n) {
   n = Number(n) || 0;
@@ -263,7 +264,7 @@ function updateFooterSuffix(update) {
   const cursorUsage = readUsageCache().filter((r) => r.provider === "cursor");
   if (cursorUsage.length) recs = recs.filter((r) => r.provider !== "cursor").concat(cursorUsage);
 
-  // ----- menu-bar headline: today's estimated cost, else today's tokens -----
+  // ----- menu-bar headline: today's estimated cost and total tokens -----
   const todayCost = recs
     .filter((r) => r.window === "today" && r.metricType === "estimated_cost")
     .reduce((s, r) => s + (Number(r.costUSD) || 0), 0);

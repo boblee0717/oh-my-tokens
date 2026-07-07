@@ -4,7 +4,7 @@ The local Native Messaging host. It reads local usage logs and (later) the DeepS
 API, normalizes everything to [`shared/schema.ts`](../shared/schema.ts), and returns
 JSON to the extension. Runs on demand — no daemon, no open port.
 
-> **Scope:** Claude Code (M1) + Codex (M2) parsers, DeepSeek balance (M3), and the
+> **Scope:** Claude Code (M1), Codex (M2), and TraeX parsers, DeepSeek balance (M3), and the
 > Native Messaging host wrapper + install (M5). The popup UI lives in [`../extension`](../extension).
 
 ## Requirements
@@ -14,7 +14,7 @@ Node ≥ 18. The host is plain JavaScript (ESM) — no build, no deps, no TS run
 ## Run
 
 ```bash
-# Print a UsageReport for Claude Code + Codex + DeepSeek
+# Print a UsageReport for Claude Code + Codex + TraeX + DeepSeek
 node host/index.js
 
 # DeepSeek balance requires an API key in the environment
@@ -142,6 +142,19 @@ local-day assertions are deterministic.
   over a 5h "primary" and weekly "secondary" window). We surface the **most recent** one as
   `quota_percent` records (one per window) with `usedPercent`, `windowLabel`, `resetsAt`, `planType`.
   This is the real subscription-quota signal the popup shows as progress bars.
+
+## What the TraeX parser does
+
+- Scans `sessions/**` under `TRAE_CLI_HOME`, `TRAE_HOME`, or `~/.trae/cli` (whichever has
+  a `sessions` directory first).
+- Each `rollout-*.jsonl` is one session; its `event_msg` / `token_count` events carry a
+  cumulative `info.total_token_usage`, so we take deltas inside `today` / `7d` / `30d` windows.
+- Maps `cached_input_tokens + cache_creation_input_tokens` to cache, subtracts both from
+  `input_tokens`, and derives output from `total_tokens - input_tokens` when that is larger
+  than `output_tokens` so reasoning-inclusive and already-inclusive records both reconcile.
+- `requests` counts sessions, not individual turns.
+- When a token event includes `rate_limits`, surfaces the latest primary/secondary windows
+  as `quota_percent` plus a credits balance when present.
 
 ### Codex reconciliation note vs `ccusage`
 

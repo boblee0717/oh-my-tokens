@@ -1,6 +1,6 @@
 # oh-my-tokens — macOS menu bar (SwiftBar plugin)
 
-Shows your AI coding tool usage (Claude Code / Codex / Cursor / DeepSeek) in the macOS
+Shows your AI coding tool usage (Claude Code / Codex / TraeX / Cursor / DeepSeek) in the macOS
 menu bar, without opening Chrome. It reuses the existing native host — same local
 token / cost / request numbers the Chrome popup shows — plus plan-usage % (quota) via a
 cache the popup writes (see "Plan usage %" below).
@@ -30,8 +30,9 @@ shows 7d / 30d rollups. Refreshes every minute.
 
 ## Plan usage % (quota)
 Plan-usage % (Cursor, claude.ai, Codex) is login-gated — it requires the site's login, so
-it can't come from local logs. The menu bar shows it from `~/.oh-my-tokens/quota-cache.json`,
-which is filled two ways depending on the provider:
+it can't come from local logs. TraeX quota, when present in local `rate_limits`, comes
+directly from the host report. The menu bar shows cached browser quota from
+`~/.oh-my-tokens/quota-cache.json`, which is filled two ways depending on the provider:
 
 - **Cursor — standalone, no browser needed.** Each refresh the plugin runs
   `refresh-quota.js`, which reads your saved `cursor.com` cookie from the browser cookie
@@ -53,13 +54,16 @@ all providers/models**, and the dropdown shows each provider/model flat (one gla
 - **Claude Code** — tokens from local logs × the Claude price table.
 - **Codex** — tokens from local logs × an **assumed GPT price** (`host/pricing.js`, `gpt`
   family — edit if you know the real rates).
+- **TraeX** — tokens from local logs × the same assumed price table when the model name is priced.
 - **Cursor** — real per-model tokens + cost fetched standalone from cursor.com's usage
   events (`cursor-usage.js`); the cost is Cursor's own reported per-event value.
 All costs are **estimates, not billing** (flagged in the dropdown).
 
 ## Scope / limits
-- Codex/Cursor costs use assumed/derived rates — directional, not invoices.
-- Quota % freshness: Cursor is live (standalone); Claude/Codex are popup-driven (see above).
+## Scope / limits
+- Codex/TraeX/Cursor costs use assumed/derived rates — directional, not invoices.
+- Quota % freshness: Cursor is live (standalone); TraeX is local when `rate_limits` exist;
+  Claude/Codex are popup-driven (see above).
 - Update checks are read from the native host's report and cached briefly so the 1-minute
   menu refresh does not run `git fetch` every time. **Update now** performs a fast-forward
   only and reinstalls the native host/menu-bar files.

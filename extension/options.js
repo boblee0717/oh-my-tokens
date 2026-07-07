@@ -1,4 +1,4 @@
-const ALL_PROVIDERS = ["claude-code", "codex", "deepseek", "cursor"];
+const ALL_PROVIDERS = ["claude-code", "codex", "traex", "deepseek", "cursor"];
 
 async function restore() {
   let s = {};

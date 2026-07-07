@@ -7,7 +7,7 @@ import { fetchClaudeQuota } from "./claude-web.js";
 import { fetchCodexQuota } from "./codex-web.js";
 import { saveQuotaToHost, DEFAULT_HOST_NAME } from "./usage-client.js";
 
-const ALL_PROVIDERS = ["claude-code", "codex", "deepseek", "cursor"];
+const ALL_PROVIDERS = ["claude-code", "codex", "traex", "deepseek", "cursor"];
 const ALARM = "omt-quota-refresh";
 const PERIOD_MINUTES = 10;
 

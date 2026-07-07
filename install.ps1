@@ -49,7 +49,7 @@ if ($nodeMajor -lt 18) {
   exit 1
 }
 
-# 1. Native messaging host (reads ~/.claude, ~/.codex, ~/.cursor; calls nothing else).
+# 1. Native messaging host (reads ~/.claude, ~/.codex, ~/.trae/cli, ~/.cursor; calls nothing else).
 & (Join-Path $dir "host\install-windows.ps1") -ExtensionId $extId -Browser $Browser
 
 # 2. Optional DeepSeek key — kept out of the browser, in a local config file.

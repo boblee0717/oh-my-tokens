@@ -1,6 +1,6 @@
 # oh-my-tokens
 
-A local-first usage dashboard for your AI coding tools — **Codex**, **Claude Code**, **DeepSeek**, and **Cursor**. See it in a **Chrome popup** or a **macOS menu-bar app**: token counts, estimated cost (totalled across all providers), plan-usage %, and balances at a glance.
+A local-first usage dashboard for your AI coding tools — **Codex**, **TraeX**, **Claude Code**, **DeepSeek**, and **Cursor**. See it in a **Chrome popup** or a **macOS menu-bar app**: token counts, estimated cost (totalled across all providers), plan-usage %, and balances at a glance.
 
 Built for personal and team use: install it, adapt it, and make your own version.
 
@@ -23,7 +23,7 @@ Everything starts from one clone; then you choose *how you want to see* your usa
 
 | Data | 🎫 Menu bar | 🧩 Extension |
 |------|:----------:|:-----------:|
-| Local tokens / cost / requests (Claude Code · Codex · DeepSeek) | ✅ | ✅ |
+| Local tokens / cost / requests (Claude Code · Codex · TraeX · DeepSeek) | ✅ | ✅ |
 | Cursor tokens / cost / plan-usage % | ✅ | ✅ |
 | Claude.ai / Codex plan-usage % | ↳ from the extension¹ | ✅ |
 | Show / hide providers | — | ✅ |
@@ -75,7 +75,7 @@ admin). Then load the extension once: **chrome://extensions → Developer mode �
 `obmkhlamcmbmacadoolbfaagmojdobah`.
 
 > **Why a host?** A sandboxed extension can't read local files, so it reads your `~/.claude` /
-> `~/.codex` logs through a Native Messaging host. `install.sh` automates everything
+> `~/.codex` / `~/.trae/cli` logs through a Native Messaging host. `install.sh` automates everything
 > scriptable; only loading an unpacked extension into an *already-running* Chrome needs a click.
 
 ### Both
@@ -87,8 +87,9 @@ running, the menu bar also picks up Claude.ai / Codex plan-usage %.
 
 - macOS or Windows, **Node ≥ 18**. The extension needs Chrome / Edge / Chromium; the
   menu-bar path installs **SwiftBar** for you (macOS only).
-- Claude Code and/or Codex used on this machine (logs in `~/.claude/` / `~/.codex/`, i.e.
-  `%USERPROFILE%\.claude` / `%USERPROFILE%\.codex` on Windows).
+- Claude Code, Codex, and/or TraeX used on this machine (logs in `~/.claude/` / `~/.codex/` /
+  `~/.trae/cli`, i.e. `%USERPROFILE%\.claude` / `%USERPROFILE%\.codex` /
+  `%USERPROFILE%\.trae\cli` on Windows).
 
 ### DeepSeek API key (optional)
 
@@ -135,7 +136,7 @@ These tools track usage separately (or not in a glanceable way). `oh-my-tokens` 
 One **Native Messaging host** (log parsers + a DeepSeek client + a standalone Cursor fetch) feeds two independent viewers. No long-running daemon and no open port: the host runs on demand, reads logs / calls APIs, returns JSON, and exits.
 
 ```
-  Chrome extension (popup) ─┐                         ┌─▶ ~/.claude, ~/.codex   (local logs)
+  Chrome extension (popup) ─┐                         ┌─▶ ~/.claude, ~/.codex, ~/.trae/cli
                             ├─▶  Native host  ───────▶├─▶ api.deepseek.com      (balance, your key)
   macOS menu bar (SwiftBar)─┘    (on-demand)          └─▶ cursor.com            (your saved cookie)
 ```
@@ -150,10 +151,11 @@ Claude.ai / Codex plan-usage % (browser-only, behind Cloudflare).
 |------|--------|-------------|
 | **Claude Code** | local JSONL `~/.claude/projects/**/*.jsonl` | per-message tokens + estimated cost by model |
 | **Codex** | local `~/.codex/sessions/` + `archived_sessions/` | session tokens + estimated cost (assumed GPT pricing) + quota % (5h + weekly) + plan + reset |
+| **TraeX** | local JSONL `$TRAE_CLI_HOME/sessions/**` or `~/.trae/cli/sessions/**` | session tokens + estimated cost when the model is priced + quota %/credits when `rate_limits` are present |
 | **DeepSeek** | DeepSeek API (balance) + platform.deepseek.com (token usage) | balance + per-model per-day token usage |
 | **Cursor** | cursor.com dashboard API (popup; **and the menu-bar host standalone, via your saved cookie**) + local sqlite fallback | per-model tokens + estimated cost, quota %; prompts login when signed out |
 
-Codex, Claude Code, and Cursor **quota %** render as progress bars; DeepSeek shows balance. Cost figures are **estimates, not billing** — Claude uses a published price table, Codex an **assumed** GPT-tier table (edit `host/pricing.js`), Cursor its own per-event reported value. In the **menu bar**, Claude.ai / Codex quota % arrive via the extension (Cloudflare blocks a standalone fetch); everything else the menu bar gets on its own.
+Codex, TraeX, Claude Code, and Cursor **quota %** render as progress bars; DeepSeek shows balance. Cost figures are **estimates, not billing** — Claude uses a published price table, Codex and TraeX use the same assumed GPT-tier table when their model names match it (edit `host/pricing.js`), Cursor uses its own per-event reported value. In the **menu bar**, Claude.ai / Codex quota % arrive via the extension (Cloudflare blocks a standalone fetch); everything else the menu bar gets on its own.
 
 ## Repo layout
 
@@ -161,7 +163,7 @@ Codex, Claude Code, and Cursor **quota %** render as progress bars; DeepSeek sho
 oh-my-tokens/
 ├─ extension/   # MV3 Chrome extension (no build step, no deps)
 ├─ host/        # Native Messaging host (log parsers + DeepSeek client + standalone Cursor fetch)
-│  └─ parsers/  # claude / codex / deepseek / cursor
+│  └─ parsers/  # claude / codex / traex / deepseek / cursor
 ├─ menubar/     # macOS menu-bar app (SwiftBar plugin + installer)
 ├─ shared/      # UsageRecord schema
 └─ README.md

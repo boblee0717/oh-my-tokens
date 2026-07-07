@@ -8,10 +8,11 @@ import { updateBannerModel } from "./update-ui.js";
 const PROVIDER_NAMES = {
   "claude-code": "Claude Code",
   codex: "Codex",
+  traex: "TraeX",
   deepseek: "DeepSeek",
   cursor: "Cursor",
 };
-const ALL_PROVIDERS = ["claude-code", "codex", "deepseek", "cursor"];
+const ALL_PROVIDERS = ["claude-code", "codex", "traex", "deepseek", "cursor"];
 let activeProviders = ALL_PROVIDERS;
 
 const _compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
