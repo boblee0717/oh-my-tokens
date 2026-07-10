@@ -150,12 +150,12 @@ Claude.ai / Codex plan-usage % (browser-only, behind Cloudflare).
 | Tool | Source | What we get |
 |------|--------|-------------|
 | **Claude Code** | local JSONL `~/.claude/projects/**/*.jsonl` | per-message tokens + estimated cost by model |
-| **Codex** | local `~/.codex/sessions/` + `archived_sessions/` | session tokens + estimated cost (assumed GPT pricing) + quota % (5h + weekly) + plan + reset |
+| **Codex** | local `~/.codex/sessions/` + `archived_sessions/` | session tokens + estimated cost (OpenRouter list price for supported exact models) + quota % (5h + weekly) + plan + reset |
 | **TraeX** | local JSONL `$TRAE_CLI_HOME/sessions/**` or `~/.trae/cli/sessions/**` | session tokens + estimated cost when the model is priced + quota %/credits when `rate_limits` are present |
 | **DeepSeek** | DeepSeek API (balance) + platform.deepseek.com (token usage) | balance + per-model per-day token usage |
 | **Cursor** | cursor.com dashboard API (popup; **and the menu-bar host standalone, via your saved cookie**) + local sqlite fallback | per-model tokens + estimated cost, quota %; prompts login when signed out |
 
-Codex, TraeX, Claude Code, and Cursor **quota %** render as progress bars; DeepSeek shows balance. Cost figures are **estimates, not billing** — Claude uses a published price table, Codex and TraeX use the same assumed GPT-tier table when their model names match it (edit `host/pricing.js`), Cursor uses its own per-event reported value. In the **menu bar**, Claude.ai / Codex quota % arrive via the extension (Cloudflare blocks a standalone fetch); everything else the menu bar gets on its own.
+Codex, TraeX, Claude Code, and Cursor **quota %** render as progress bars; DeepSeek shows balance. Cost figures are **estimates, not billing** — Claude uses a published price table; Codex uses static OpenRouter list prices for supported exact models (including `gpt-5.6-sol`), then falls back to the generic GPT estimate for other model names; TraeX uses the same generic estimate when its model names match it; Cursor uses its own per-event reported value. Edit `host/pricing.js` to update the static table. In the **menu bar**, Claude.ai / Codex quota % arrive via the extension (Cloudflare blocks a standalone fetch); everything else the menu bar gets on its own.
 
 ## Repo layout
 
