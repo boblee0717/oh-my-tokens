@@ -106,6 +106,46 @@ test("headline displays today's total tokens from all models beside today's esti
   assert.equal(out.split("\n")[0], "🎫 $3.00 · 6.1M tok | sfimage=ticket");
 });
 
+test("headline includes a Codex 5.6 Sol estimated-cost record from the host", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "omt-format-codex-56-"));
+  const quotaCache = join(dir, "quota-cache.json");
+  const usageCache = join(dir, "usage-cache.json");
+  await writeFile(quotaCache, JSON.stringify({ records: [] }));
+  await writeFile(usageCache, JSON.stringify({ records: [] }));
+
+  const out = await runFormat(
+    {
+      generatedAt: "2026-07-10T09:00:00.000Z",
+      errors: [],
+      records: [
+        {
+          id: "codex:gpt-5.6-sol:today:measured_tokens",
+          provider: "codex",
+          model: "gpt-5.6-sol",
+          metricType: "measured_tokens",
+          window: "today",
+          inputTokens: 1_000_000,
+          outputTokens: 1_000_000,
+          cacheTokens: 1_000_000,
+        },
+        {
+          id: "codex:gpt-5.6-sol:today:estimated_cost",
+          provider: "codex",
+          model: "gpt-5.6-sol",
+          metricType: "estimated_cost",
+          window: "today",
+          costUSD: 35.5,
+          currency: "USD",
+          confidence: "low",
+        },
+      ],
+    },
+    { OMT_QUOTA_CACHE: quotaCache, OMT_USAGE_CACHE: usageCache },
+  );
+
+  assert.equal(out.split("\n")[0], "🎫 $35.50 · 3.0M tok | sfimage=ticket");
+});
+
 test("PLAN USAGE prefers newer quota records from the host report over stale cache", async () => {
   const dir = await mkdtemp(join(tmpdir(), "omt-format-"));
   const quotaCache = join(dir, "quota-cache.json");

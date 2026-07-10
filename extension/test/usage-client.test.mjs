@@ -99,6 +99,34 @@ test("native host response does not carry a fallback error", async () => {
   }
 });
 
+test("native Codex estimated-cost records reach the extension unchanged", async () => {
+  const originalChrome = globalThis.chrome;
+  const codexCost = {
+    id: "codex:gpt-5.6-sol:today:estimated_cost",
+    provider: "codex",
+    model: "gpt-5.6-sol",
+    metricType: "estimated_cost",
+    window: "today",
+    costUSD: 35.5,
+    currency: "USD",
+  };
+  const runtime = {
+    lastError: null,
+    sendNativeMessage(_hostName, _message, callback) {
+      queueMicrotask(() => callback({ ...sampleReport, records: [codexCost] }));
+    },
+  };
+
+  try {
+    globalThis.chrome = { runtime };
+    const report = await getUsageReport();
+    assert.equal(report._source, "native");
+    assert.deepEqual(report.records, [codexCost]);
+  } finally {
+    globalThis.chrome = originalChrome;
+  }
+});
+
 test("uses sendNativeMessage for one-shot native host requests when available", async () => {
   const originalChrome = globalThis.chrome;
   let sent = null;

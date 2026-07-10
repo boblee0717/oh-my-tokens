@@ -41,7 +41,7 @@ function fillEstimatedCosts(records) {
       currency: "USD",
       updatedAt: r.updatedAt,
       confidence: "low",
-      warnings: ["estimated from an assumed price table; not authoritative billing"],
+      warnings: ["estimated from the OpenRouter list price; not authoritative billing"],
     });
   }
   return extra;
