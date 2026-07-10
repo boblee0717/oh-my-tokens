@@ -1,3 +1,9 @@
+const MODEL_PRICES = {
+  // OpenRouter list price, USD per MTok: input $5, output $30, cache read 10% of input.
+  "gpt-5.6-sol": { inputPerMTok: 5, outputPerMTok: 30, cacheWritePerMTok: 6.25, cacheReadPerMTok: 0.5 },
+  "gpt-5.6-sol-pro": { inputPerMTok: 5, outputPerMTok: 30, cacheWritePerMTok: 6.25, cacheReadPerMTok: 0.5 },
+};
+
 const FAMILY_PRICES = {
   // Claude Fable 5 / Mythos 5 — $10 in / $50 out per MTok; cache write 1.25x, cache read 0.1x input
   fable: { inputPerMTok: 10, outputPerMTok: 50, cacheWritePerMTok: 12.5, cacheReadPerMTok: 1 },
@@ -6,8 +12,7 @@ const FAMILY_PRICES = {
   opus: { inputPerMTok: 5, outputPerMTok: 25, cacheWritePerMTok: 6.25, cacheReadPerMTok: 0.5 },
   sonnet: { inputPerMTok: 3, outputPerMTok: 15, cacheWritePerMTok: 3.75, cacheReadPerMTok: 0.3 },
   haiku: { inputPerMTok: 1, outputPerMTok: 5, cacheWritePerMTok: 1.25, cacheReadPerMTok: 0.1 },
-  // Codex / OpenAI GPT — ASSUMED rates (GPT-5 tier). Adjust here if you know the real
-  // numbers; used only for the "estimated cost" figure, never for billing.
+  // Codex / OpenAI GPT generic fallback. Exact models are listed above.
   gpt: { inputPerMTok: 1.25, outputPerMTok: 10, cacheWritePerMTok: 1.25, cacheReadPerMTok: 0.125 },
   codex: { inputPerMTok: 1.25, outputPerMTok: 10, cacheWritePerMTok: 1.25, cacheReadPerMTok: 0.125 },
 };
@@ -15,6 +20,7 @@ const FAMILY_PRICES = {
 export function priceForModel(model) {
   if (!model) return null;
   const m = model.toLowerCase();
+  if (MODEL_PRICES[m]) return MODEL_PRICES[m];
   for (const family of Object.keys(FAMILY_PRICES)) {
     if (m.includes(family)) return FAMILY_PRICES[family];
   }
