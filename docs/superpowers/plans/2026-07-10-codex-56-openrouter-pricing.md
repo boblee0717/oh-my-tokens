@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Emit and display OpenRouter-list-price estimated cost for local `gpt-5.6-sol` Codex usage in the Chrome extension and macOS menu bar.
+**Goal:** Emit and display OpenRouter-list-price estimated cost for local GPT-5.6 Codex usage in the Chrome extension and macOS menu bar.
 
-**Architecture:** `host/pricing.js` resolves exact 5.6 Sol model names before the existing family fallback. `host/report.js` emits a shared `estimated_cost` record, which the extension popup and SwiftBar formatter already render.
+**Architecture:** `host/pricing.js` resolves exact 5.6 Luna, Terra, and Sol model names before the existing family fallback. `host/report.js` emits a shared `estimated_cost` record, which the extension popup and SwiftBar formatter already render.
 
 **Tech Stack:** Node.js ESM, `node:test`, Chrome MV3 extension, SwiftBar.
 

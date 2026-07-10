@@ -1,5 +1,9 @@
 const MODEL_PRICES = {
-  // OpenRouter list price, USD per MTok: input $5, output $30, cache read 10% of input.
+  // OpenRouter list prices, USD per MTok. Cache read is 10% of input; cache write is 125%.
+  "gpt-5.6-luna": { inputPerMTok: 1, outputPerMTok: 6, cacheWritePerMTok: 1.25, cacheReadPerMTok: 0.1 },
+  "gpt-5.6-luna-pro": { inputPerMTok: 1, outputPerMTok: 6, cacheWritePerMTok: 1.25, cacheReadPerMTok: 0.1 },
+  "gpt-5.6-terra": { inputPerMTok: 2.5, outputPerMTok: 15, cacheWritePerMTok: 3.125, cacheReadPerMTok: 0.25 },
+  "gpt-5.6-terra-pro": { inputPerMTok: 2.5, outputPerMTok: 15, cacheWritePerMTok: 3.125, cacheReadPerMTok: 0.25 },
   "gpt-5.6-sol": { inputPerMTok: 5, outputPerMTok: 30, cacheWritePerMTok: 6.25, cacheReadPerMTok: 0.5 },
   "gpt-5.6-sol-pro": { inputPerMTok: 5, outputPerMTok: 30, cacheWritePerMTok: 6.25, cacheReadPerMTok: 0.5 },
 };

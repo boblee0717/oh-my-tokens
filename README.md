@@ -155,7 +155,7 @@ Claude.ai / Codex plan-usage % (browser-only, behind Cloudflare).
 | **DeepSeek** | DeepSeek API (balance) + platform.deepseek.com (token usage) | balance + per-model per-day token usage |
 | **Cursor** | cursor.com dashboard API (popup; **and the menu-bar host standalone, via your saved cookie**) + local sqlite fallback | per-model tokens + estimated cost, quota %; prompts login when signed out |
 
-Codex, TraeX, Claude Code, and Cursor **quota %** render as progress bars; DeepSeek shows balance. Cost figures are **estimates, not billing** — Claude uses a published price table; Codex uses static OpenRouter list prices for supported exact models (including `gpt-5.6-sol`), then falls back to the generic GPT estimate for other model names; TraeX uses the same generic estimate when its model names match it; Cursor uses its own per-event reported value. Edit `host/pricing.js` to update the static table. In the **menu bar**, Claude.ai / Codex quota % arrive via the extension (Cloudflare blocks a standalone fetch); everything else the menu bar gets on its own.
+Codex, TraeX, Claude Code, and Cursor **quota %** render as progress bars; DeepSeek shows balance. Cost figures are **estimates, not billing** — Claude uses a published price table; Codex uses static OpenRouter list prices for GPT-5.6 Luna, Terra, and Sol (including Pro variants), then falls back to the generic GPT estimate for other model names; TraeX uses the same generic estimate when its model names match it; Cursor uses its own per-event reported value. Edit `host/pricing.js` to update the static table. In the **menu bar**, Claude.ai / Codex quota % arrive via the extension (Cloudflare blocks a standalone fetch); everything else the menu bar gets on its own.
 
 ## Repo layout
 

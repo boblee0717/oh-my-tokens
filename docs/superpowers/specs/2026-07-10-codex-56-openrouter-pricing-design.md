@@ -2,15 +2,19 @@
 
 ## Goal
 
-Show an OpenRouter-list-price-based estimated cost for the Codex model that the
-local session logs identify as `gpt-5.6-sol`, in both the Chrome extension and
-the macOS SwiftBar menu bar.
+Show OpenRouter-list-price-based estimated costs for the Codex 5.6 models in
+local session logs, in both the Chrome extension and the macOS SwiftBar menu
+bar.
 
 ## Design
 
 The native host remains the single source of cost records. Add an exact-model
 match ahead of the existing family fallbacks in `host/pricing.js`:
 
+- `gpt-5.6-luna` and `gpt-5.6-luna-pro`: input $1, cache read $0.10, cache
+  write $1.25, output $6 per million tokens.
+- `gpt-5.6-terra` and `gpt-5.6-terra-pro`: input $2.50, cache read $0.25,
+  cache write $3.125, output $15 per million tokens.
 - `gpt-5.6-sol` and `gpt-5.6-sol-pro`: input $5, cache read $0.50, cache write
   $6.25, output $30 per million tokens.
 
