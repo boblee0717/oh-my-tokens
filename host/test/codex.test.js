@@ -105,10 +105,9 @@ test("credits plan (null primary/secondary) surfaces a credits balance record", 
   assert.equal(records.some((r) => r.metricType === "quota_percent"), false);
 });
 
-test("new limit family with used_percent=0 + null plan_type/balance is unavailable, not 0%", async () => {
-  // codex_bengalfox-style: rate_limits report 0% with no plan_type and null balance.
-  // That is absent quota data, not real usage — drop quota_percent + balance so the popup
-  // shows "quota data unavailable" instead of a misleading 0% / "0 credits". Token usage stays.
+test("non-canonical bengalfox limits do not produce main-plan quota records", async () => {
+  // codex_bengalfox is an auxiliary limit family. It can carry plan_type=prolite and 0%,
+  // but must not be rendered as the Codex subscription quota.
   const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "codex-bengalfox");
   const records = await parseCodexUsage({ baseDir: dir, now: NOW });
   assert.equal(records.some((r) => r.metricType === "quota_percent"), false, "no 0% quota rows");
@@ -116,6 +115,40 @@ test("new limit family with used_percent=0 + null plan_type/balance is unavailab
   const tokens = records.find((r) => r.model === "gpt-5.5" && r.metricType === "measured_tokens");
   assert.ok(tokens, "token usage is still reported");
   assert.equal(tokens.inputTokens, 100);
+});
+
+test("canonical Codex quota is not overwritten by a later bengalfox limit", async () => {
+  const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "codex-rate-limit-source");
+  const records = await parseCodexUsage({ baseDir: dir, now: NOW });
+  const quota = records.filter((r) => r.metricType === "quota_percent");
+  assert.deepEqual(
+    quota
+      .map(({ windowLabel, usedPercent, planType, updatedAt }) => ({ windowLabel, usedPercent, planType, updatedAt }))
+      .sort((a, b) => a.windowLabel.localeCompare(b.windowLabel)),
+    [
+      {
+        windowLabel: "5h",
+        usedPercent: 18,
+        planType: "prolite",
+        updatedAt: "2026-05-26T09:00:02.000Z",
+      },
+      {
+        windowLabel: "Weekly",
+        usedPercent: 44,
+        planType: "prolite",
+        updatedAt: "2026-05-26T09:00:02.000Z",
+      },
+    ],
+  );
+});
+
+test("canonical Codex zero-percent quota remains visible", async () => {
+  const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "codex-canonical-zero");
+  const records = await parseCodexUsage({ baseDir: dir, now: NOW });
+  const weekly = records.find((r) => r.metricType === "quota_percent" && r.windowLabel === "Weekly");
+  assert.ok(weekly, "expected a real canonical Codex weekly quota");
+  assert.equal(weekly.usedPercent, 0);
+  assert.equal(weekly.planType, "prolite");
 });
 
 test("falls back to filename-derived session id when session_meta is absent", async () => {

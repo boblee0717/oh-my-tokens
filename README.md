@@ -11,13 +11,15 @@ Everything starts from one clone; then you choose *how you want to see* your usa
 
 | Setup | One command | What you get | Needs Chrome running? |
 |-------|-------------|--------------|:---------------------:|
-| 🎫 **macOS menu bar** (standalone) | `./install.sh --menubar` | Every tool's tokens / cost / requests **+ Cursor plan-usage % & cost**, in the menu bar | **No** — updates with Chrome closed |
-| 🧩 **Chrome extension** (popup) | `./install.sh` + load unpacked | The same, in a popup — **plus** login-gated plan-usage % for **Claude.ai** & **Codex** | Yes |
-| **Both** | `--menubar` + load the extension | Menu bar **and** popup; the menu bar then also shows Claude/Codex plan-usage % | Yes |
+| 🎫 **macOS menu bar** (standalone) | `./install.sh --menubar` | Every tool's tokens / cost / requests **+ Cursor plan-usage % & cost + local Codex quota snapshots**, in the menu bar | **No** — updates with Chrome closed |
+| 🧩 **Chrome extension** (popup) | `./install.sh` + load unpacked | The same, in a popup — **plus** Claude.ai plan usage and Codex browser analytics when available | Yes |
+| **Both** | `--menubar` + load the extension | Menu bar **and** popup; the extension adds Claude.ai usage and can refresh older Codex quota windows | Yes |
 
-> **Why two paths?** Token/cost come from local logs, and Cursor's usage is reachable with
-> your saved cookie — so the menu bar runs standalone. Claude.ai / Codex plan-usage % sit
-> behind Cloudflare and can only be fetched from inside the browser, so those need the extension.
+> **Why two paths?** Token/cost and canonical Codex `rate_limits` snapshots come from local
+> logs, and Cursor's usage is reachable with your saved cookie — so the menu bar runs
+> standalone. Cloudflare prevents a standalone fetch of browser analytics: Claude.ai needs
+> the extension, while Codex analytics from the extension can provide a newer record for the
+> same quota window than the local snapshot.
 
 **What shows where:**
 
@@ -25,10 +27,13 @@ Everything starts from one clone; then you choose *how you want to see* your usa
 |------|:----------:|:-----------:|
 | Local tokens / cost / requests (Claude Code · Codex · TraeX · DeepSeek) | ✅ | ✅ |
 | Cursor tokens / cost / plan-usage % | ✅ | ✅ |
-| Claude.ai / Codex plan-usage % | ↳ from the extension¹ | ✅ |
+| Codex quota % from local canonical `rate_limits` | ✅¹ | ✅ |
+| Claude.ai plan usage + newer Codex browser analytics | ↳ from the extension² | ✅ |
 | Show / hide providers | — | ✅ |
 
-¹ the menu bar shows Claude/Codex plan-usage % only after the extension has fetched it (Cloudflare blocks a standalone fetch); everything else the menu bar gets on its own.
+¹ Local Codex quota is only as recent as the newest `token_count` snapshot; it is not a live server fetch.
+
+² Cloudflare blocks a standalone browser-analytics fetch. The extension caches Claude.ai usage and any Codex analytics it can read; the menu bar keeps the newer record for each Codex quota window.
 
 **First, clone** (or hand this repo to your coding agent and say **"install this"** — ~1 min):
 
@@ -44,8 +49,9 @@ cd /tmp/oh-my-tokens
 ```
 
 A 🎫 item appears showing **today's total estimated cost and total tokens**; the dropdown breaks down
-plan-usage % and per-provider tokens/cost in one tap. Cursor + local data refresh on their
-own (Cursor via your saved `cursor.com` cookie), so it stays current with Chrome closed.
+plan-usage % and per-provider tokens/cost in one tap. Cursor and local Codex quota snapshots
+(when the logs contain canonical `rate_limits`) refresh on their own, so they remain available
+with Chrome closed.
 Details + uninstall: [`menubar/README.md`](./menubar/README.md).
 
 ### Option B — Chrome extension (popup)
@@ -80,8 +86,9 @@ admin). Then load the extension once: **chrome://extensions → Developer mode �
 
 ### Both
 
-Run `./install.sh --menubar` **and** load the extension (Option B). With the extension
-running, the menu bar also picks up Claude.ai / Codex plan-usage %.
+Run `./install.sh --menubar` **and** load the extension (Option B). The menu bar then adds
+Claude.ai plan usage, and can replace an older local Codex quota window with a newer browser
+analytics record.
 
 ### Prerequisites
 
@@ -142,20 +149,21 @@ One **Native Messaging host** (log parsers + a DeepSeek client + a standalone Cu
 ```
 
 Both viewers read the same host. The **menu bar** runs the host CLI on a ~1-minute timer and
-needs **no extension**; the **extension** adds the one thing a standalone process can't get —
-Claude.ai / Codex plan-usage % (browser-only, behind Cloudflare).
+needs **no extension**, including for local canonical Codex quota snapshots. The **extension**
+adds browser-only Claude.ai plan usage and, when available, newer Codex analytics behind
+Cloudflare.
 
 ## Data sources
 
 | Tool | Source | What we get |
 |------|--------|-------------|
 | **Claude Code** | local JSONL `~/.claude/projects/**/*.jsonl` | per-message tokens + estimated cost by model |
-| **Codex** | local `~/.codex/sessions/` + `archived_sessions/` | session tokens + estimated cost (OpenRouter list price for supported exact models) + quota % (5h + weekly) + plan + reset |
+| **Codex** | local `~/.codex/sessions/` + `archived_sessions/` canonical `rate_limits` snapshots; browser analytics cache when the extension can read it | session tokens + estimated cost (OpenRouter list price for supported exact models) + local 5h/weekly quota, plan, reset; newer browser analytics may replace the same window |
 | **TraeX** | local JSONL `$TRAE_CLI_HOME/sessions/**` or `~/.trae/cli/sessions/**` | session tokens + estimated cost when the model is priced + quota %/credits when `rate_limits` are present |
 | **DeepSeek** | DeepSeek API (balance) + platform.deepseek.com (token usage) | balance + per-model per-day token usage |
 | **Cursor** | cursor.com dashboard API (popup; **and the menu-bar host standalone, via your saved cookie**) + local sqlite fallback | per-model tokens + estimated cost, quota %; prompts login when signed out |
 
-Codex, TraeX, Claude Code, and Cursor **quota %** render as progress bars; DeepSeek shows balance. Cost figures are **estimates, not billing** — Claude uses a published price table; Codex uses static OpenRouter list prices for GPT-5.6 Luna, Terra, and Sol (including Pro variants), then falls back to the generic GPT estimate for other model names; TraeX uses the same generic estimate when its model names match it; Cursor uses its own per-event reported value. Edit `host/pricing.js` to update the static table. In the **menu bar**, Claude.ai / Codex quota % arrive via the extension (Cloudflare blocks a standalone fetch); everything else the menu bar gets on its own.
+Codex, TraeX, Claude Code, and Cursor **quota %** render as progress bars; DeepSeek shows balance. Cost figures are **estimates, not billing** — Claude uses a published price table; Codex uses static OpenRouter list prices for GPT-5.6 Luna, Terra, and Sol (including Pro variants), then falls back to the generic GPT estimate for other model names; TraeX uses the same generic estimate when its model names match it; Cursor uses its own per-event reported value. Edit `host/pricing.js` to update the static table. In the **menu bar**, Codex quota comes from the latest local canonical snapshot (not a live fetch); if the extension has newer browser analytics, the menu bar keeps that newer record per quota window. Claude.ai remains extension-provided, while Cursor remains standalone.
 
 ## Repo layout
 

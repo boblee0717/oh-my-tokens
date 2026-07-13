@@ -1,9 +1,10 @@
 # oh-my-tokens — macOS menu bar (SwiftBar plugin)
 
 Shows your AI coding tool usage (Claude Code / Codex / TraeX / Cursor / DeepSeek) in the macOS
-menu bar, without opening Chrome. It reuses the existing native host — same local
-token / cost / request numbers the Chrome popup shows — plus plan-usage % (quota) via a
-cache the popup writes (see "Plan usage %" below).
+menu bar, without opening Chrome. It reuses the existing native host for local token / cost /
+request numbers and canonical Codex `rate_limits` quota snapshots. A popup-written browser
+analytics cache can add Claude.ai usage and replace an older Codex quota record for the same
+window (see "Plan usage %" below).
 
 ## Why SwiftBar
 - **One command, agent-installable** — `install-menubar.sh` does everything.
@@ -29,24 +30,30 @@ shows 7d / 30d rollups. Refreshes every minute.
   points SwiftBar at the plugin folder (only if you don't already use one), launches it.
 
 ## Plan usage % (quota)
-Plan-usage % (Cursor, claude.ai, Codex) is login-gated — it requires the site's login, so
-it can't come from local logs. TraeX quota, when present in local `rate_limits`, comes
-directly from the host report. The menu bar shows cached browser quota from
-`~/.oh-my-tokens/quota-cache.json`, which is filled two ways depending on the provider:
+Cursor and Claude.ai plan usage are login-gated. Codex is different: when local
+`token_count` events contain canonical `limit_id: "codex"` `rate_limits`, the native host
+emits its 5h and weekly quota directly. That snapshot is log-driven, not a live server fetch.
+Browser analytics sit behind Cloudflare, so the extension can also cache Codex analytics (and
+Claude.ai usage) in `~/.oh-my-tokens/quota-cache.json`:
 
 - **Cursor — standalone, no browser needed.** Each refresh the plugin runs
   `refresh-quota.js`, which reads your saved `cursor.com` cookie from the browser cookie
   store (macOS Keychain, one-time "Always Allow"), calls `cursor.com/api/usage-summary`
   itself, and merges the result. So Cursor stays current even with Chrome closed.
   (`chrome-cookies.js` does the read/decrypt; `cursor-quota.js` does the fetch/map.)
-- **Claude.ai / Codex — via the extension.** These sit behind Cloudflare bot protection
-  that rejects non-browser TLS fingerprints, so a standalone host can't fetch them; the
-  Chrome extension pushes them to the host (`{type:"saveQuota"}`) when it runs.
+- **Claude.ai — via the extension.** Cloudflare bot protection rejects a standalone fetch,
+  so the Chrome extension pushes browser-derived quota to the host (`{type:"saveQuota"}`)
+  when it runs.
+- **Codex — local snapshot first; extension analytics when newer.** The host ignores
+  auxiliary non-canonical local limit families for plan quota. When the extension can read
+  Codex analytics in the browser, it caches those records; the menu bar can use them when
+  they are newer for the same 5h or weekly window.
 
 The cache **merges per provider** (`mergeQuotaCache`), so the standalone Cursor refresh and
-the extension's Claude/Codex pushes never clobber each other. Each provider line shows its
-own freshness ("just now" / "31m ago", "(stale)" after 24h). A provider with no data yet is
-simply omitted.
+the extension's Claude/Codex pushes never clobber each other. On each menu refresh, the
+formatter merges cached and host quota **per quota window**, keeping the record with the newer
+`updatedAt`. Each provider line shows its own freshness ("just now" / "31m ago", "(stale)"
+after 24h). A provider with no data yet is simply omitted.
 
 ## Cost and tokens (menu-bar total)
 The 🎫 menu-bar number shows **today's total estimated cost and today's total tokens across
@@ -60,10 +67,10 @@ all providers/models**, and the dropdown shows each provider/model flat (one gla
 All costs are **estimates, not billing** (flagged in the dropdown).
 
 ## Scope / limits
-## Scope / limits
 - Codex/TraeX/Cursor costs use assumed/derived rates — directional, not invoices.
 - Quota % freshness: Cursor is live (standalone); TraeX is local when `rate_limits` exist;
-  Claude/Codex are popup-driven (see above).
+  Codex is as fresh as its newest local canonical `token_count` snapshot unless newer browser
+  analytics are cached for that window; Claude.ai is popup-driven.
 - Update checks are read from the native host's report and cached briefly so the 1-minute
   menu refresh does not run `git fetch` every time. **Update now** performs a fast-forward
   only and reinstalls the native host/menu-bar files.

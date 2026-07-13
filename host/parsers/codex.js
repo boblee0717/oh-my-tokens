@@ -36,6 +36,7 @@ function parseSession(file, text) {
   const events = [];
   let rateLimits = null;
   let rateLimitsTs = 0;
+  const rateLimitCandidates = [];
 
   for (const line of text.split("\n")) {
     const trimmed = line.trim();
@@ -72,6 +73,9 @@ function parseSession(file, text) {
         rateLimits = payload.rate_limits;
         rateLimitsTs = tsMs;
       }
+      if (payload.rate_limits) {
+        rateLimitCandidates.push({ rateLimits: payload.rate_limits, rateLimitsTs: tsMs });
+      }
     }
   }
 
@@ -86,6 +90,7 @@ function parseSession(file, text) {
     totalTokens: final.totalTokens,
     rateLimits,
     rateLimitsTs,
+    rateLimitCandidates,
   };
 }
 
@@ -112,6 +117,7 @@ function mergeSession(a, b) {
     totalTokens: Math.max(a.totalTokens, b.totalTokens),
     rateLimits: latestRateLimits.rateLimits,
     rateLimitsTs: latestRateLimits.rateLimitsTs,
+    rateLimitCandidates: [...a.rateLimitCandidates, ...b.rateLimitCandidates],
   };
 }
 
@@ -144,11 +150,6 @@ function windowLabel(minutes) {
 
 function quotaRecord(source, win, planType, updatedAt) {
   if (!win || typeof win.used_percent !== "number") return null;
-  // New Codex limit families (e.g. codex_bengalfox) report used_percent=0 with no plan_type:
-  // that is absent quota data, NOT a real "0% used". Drop it so the popup shows
-  // "quota data unavailable" instead of a misleading 0% bar. The Codex client UI gets the
-  // real % from its own live source, which the session jsonl does not expose.
-  if (win.used_percent === 0 && planType == null) return null;
   const label = windowLabel(num(win.window_minutes));
   const resetsAt = win.resets_at ? new Date(num(win.resets_at) * 1000).toISOString() : undefined;
   return {
@@ -204,6 +205,17 @@ function creditsRecord(source, credits, planType, updatedAt) {
   };
 }
 
+function latestRateLimitCandidate(sessions, accepts) {
+  let latest = null;
+  for (const session of sessions) {
+    for (const candidate of session.rateLimitCandidates) {
+      if (!accepts(candidate.rateLimits)) continue;
+      if (!latest || candidate.rateLimitsTs >= latest.rateLimitsTs) latest = candidate;
+    }
+  }
+  return latest;
+}
+
 export async function parseCodexUsage(opts = {}) {
   const baseDir = opts.baseDir ?? join(homedir(), ".codex");
   const now = opts.now ?? new Date();
@@ -236,16 +248,26 @@ export async function parseCodexUsage(opts = {}) {
   for (const s of sessions) {
     if (s.rateLimits && (!latestRL || s.rateLimitsTs > latestRL.rateLimitsTs)) latestRL = s;
   }
+  const quotaRL =
+    latestRateLimitCandidate(sessions, (rl) => rl.limit_id === "codex") ??
+    latestRateLimitCandidate(sessions, (rl) => rl.limit_id == null || rl.limit_id === "");
+  if (quotaRL) {
+    const rl = quotaRL.rateLimits;
+    const plan = typeof rl.plan_type === "string" ? rl.plan_type : null;
+    const rateLimitsUpdatedAt = quotaRL.rateLimitsTs
+      ? new Date(quotaRL.rateLimitsTs).toISOString()
+      : updatedAt;
+    for (const win of [rl.primary, rl.secondary]) {
+      const rec = quotaRecord(source, win, plan, rateLimitsUpdatedAt);
+      if (rec) records.push(rec);
+    }
+  }
   if (latestRL?.rateLimits) {
     const rl = latestRL.rateLimits;
     const plan = typeof rl.plan_type === "string" ? rl.plan_type : null;
     const rateLimitsUpdatedAt = latestRL.rateLimitsTs
       ? new Date(latestRL.rateLimitsTs).toISOString()
       : updatedAt;
-    for (const win of [rl.primary, rl.secondary]) {
-      const rec = quotaRecord(source, win, plan, rateLimitsUpdatedAt);
-      if (rec) records.push(rec);
-    }
     const creditsRec = creditsRecord(source, rl.credits, plan, rateLimitsUpdatedAt);
     if (creditsRec) records.push(creditsRec);
   }

@@ -139,9 +139,12 @@ local-day assertions are deterministic.
 - `requests` counts **sessions**, not turns (flagged in `warnings`).
 
 - **Quota (M7):** Codex `token_count` events carry `rate_limits` (`plan_type` + `used_percent`
-  over a 5h "primary" and weekly "secondary" window). We surface the **most recent** one as
-  `quota_percent` records (one per window) with `usedPercent`, `windowLabel`, `resetsAt`, `planType`.
-  This is the real subscription-quota signal the popup shows as progress bars.
+  over a 5h "primary" and weekly "secondary" window). We retain every snapshot, then make
+  `quota_percent` records from the newest canonical `limit_id: "codex"` snapshot. Only when
+  no canonical snapshot exists do we fall back to an empty or missing `limit_id`; other
+  non-empty limit families are not subscription quota. Credits still use the newest raw
+  rate-limit snapshot overall. Each quota window carries `usedPercent`, `windowLabel`,
+  `resetsAt`, and `planType`.
 
 ## What the TraeX parser does
 
