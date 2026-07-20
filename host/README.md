@@ -4,7 +4,7 @@ The local Native Messaging host. It reads local usage logs and (later) the DeepS
 API, normalizes everything to [`shared/schema.ts`](../shared/schema.ts), and returns
 JSON to the extension. Runs on demand — no daemon, no open port.
 
-> **Scope:** Claude Code (M1), Codex (M2), and TraeX parsers, DeepSeek balance (M3), and the
+> **Scope:** Claude Code (M1), Codex (M2), TraeX and Kimi Code parsers, DeepSeek balance (M3), and the
 > Native Messaging host wrapper + install (M5). The popup UI lives in [`../extension`](../extension).
 
 ## Requirements
@@ -14,7 +14,7 @@ Node ≥ 18. The host is plain JavaScript (ESM) — no build, no deps, no TS run
 ## Run
 
 ```bash
-# Print a UsageReport for Claude Code + Codex + TraeX + DeepSeek
+# Print a UsageReport for Claude Code + Codex + TraeX + Kimi Code + DeepSeek
 node host/index.js
 
 # DeepSeek balance requires an API key in the environment
@@ -158,6 +158,18 @@ local-day assertions are deterministic.
 - `requests` counts sessions, not individual turns.
 - When a token event includes `rate_limits`, surfaces the latest primary/secondary windows
   as `quota_percent` plus a credits balance when present.
+
+## What the Kimi parser does
+
+- Scans `sessions/**/wire.jsonl` under `~/.kimi-code` (one wire file per agent per session;
+  subagent wire files are included).
+- Each `{"type":"usage.record"}` line is a **per-turn delta**
+  (`usage.inputOther / output / inputCacheRead / inputCacheCreation`, ms `time`), so window
+  totals are plain sums — no cumulative-snapshot delta logic like Codex/TraeX.
+- Only `usageScope: "turn"` records count; other scopes (e.g. session-level aggregates) are
+  skipped to avoid double counting. Malformed lines are ignored.
+- Cost is **not** estimated (no authoritative Kimi Code price source yet); records carry a warning.
+- `requests` counts LLM turns (main agent + subagents), not user prompts (flagged in `warnings`).
 
 ### Codex reconciliation note vs `ccusage`
 

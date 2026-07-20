@@ -3,6 +3,7 @@ import { parseCodexUsage } from "./parsers/codex.js";
 import { parseDeepSeekUsage } from "./parsers/deepseek.js";
 import { parseCursorUsage } from "./parsers/cursor.js";
 import { parseTraeXUsage } from "./parsers/traex.js";
+import { parseKimiUsage } from "./parsers/kimi.js";
 import { estimateCostUSD } from "./pricing.js";
 import { getUpdateForReport } from "./update-manager.js";
 
@@ -68,6 +69,11 @@ export async function buildUsageReport(hostVersion, opts = {}) {
     report.records.push(...(await parseTraeXUsage()));
   } catch (e) {
     report.errors.push({ provider: "traex", message: String(e) });
+  }
+  try {
+    report.records.push(...(await parseKimiUsage()));
+  } catch (e) {
+    report.errors.push({ provider: "kimi", message: String(e) });
   }
   try {
     report.records.push(...(await parseCursorUsage()));

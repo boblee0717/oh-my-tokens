@@ -1,0 +1,11 @@
+{"type":"metadata","protocol_version":"1.4","created_at":1783327000000}
+{"type":"config.update","profileName":"agent","time":1783327001000}
+{"type":"llm.request","kind":"loop","provider":"kimi","model":"k3","modelAlias":"kimi-code/k3","turnStep":"0.1","time":1783328300000}
+{"type":"usage.record","model":"kimi-code/k3","usage":{"inputOther":1000,"output":200,"inputCacheRead":300,"inputCacheCreation":100},"usageScope":"turn","time":1783328400000}
+{"type":"llm.request","kind":"loop","provider":"kimi","model":"k3","modelAlias":"kimi-code/k3","turnStep":"1.1","time":1783331900000}
+{"type":"usage.record","model":"kimi-code/k3","usage":{"inputOther":500,"output":100,"inputCacheRead":50,"inputCacheCreation":0},"usageScope":"turn","time":1783332000000}
+{"type":"usage.record","model":"kimi-code/k3","usage":{"inputOther":300,"output":60,"inputCacheRead":20,"inputCacheCreation":0},"usageScope":"turn","time":1782986400000}
+{"type":"usage.record","model":"kimi-code/k3","usage":{"inputOther":9999,"output":999,"inputCacheRead":999,"inputCacheCreation":0},"usageScope":"turn","time":1777629600000}
+{"type":"usage.record","model":"kimi-code/k3","usage":{"inputOther":777,"output":77,"inputCacheRead":0,"inputCacheCreation":0},"usageScope":"session","time":1783333000000}
+not-json-line
+{"type":"turn.cancel","time":1783334000000}

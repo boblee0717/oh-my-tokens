@@ -2,6 +2,19 @@
 
 Key decisions and incident records shared across agent sessions.
 
+## 2026-07-20: Kimi Code integration
+
+- **Kimi Code — local parser** (`host/parsers/kimi.js`): reads `~/.kimi-code/sessions/**/wire.jsonl`
+  (one wire file per agent per session, subagents included). `{"type":"usage.record"}` lines are
+  **per-turn deltas** (`usage.inputOther` → input, `output` → output, `inputCacheRead +
+  inputCacheCreation` → cache, ms `time`), so window totals are plain sums — no cumulative-snapshot
+  delta logic like Codex/TraeX. Only `usageScope: "turn"` counts (session-scoped aggregates would
+  double-count). `requests` = LLM turns, not user prompts. No cost estimate (no authoritative
+  Kimi Code price source yet — same stance as early Codex). Provider id `kimi`, label "Kimi Code",
+  appended at the end of every provider list (popup/background/options/menubar/schema).
+- Never read `~/.kimi-code/credentials/` or `~/.kimi-code/oauth/` — secrets; the parser only
+  walks `sessions/**/wire.jsonl`.
+
 ## PUSH POLICY (2026-06-26, updated by Bob)
 
 **`claudeOpus` and Codex may push to this repo (master and all branches).** All agents on this

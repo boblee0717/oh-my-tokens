@@ -1,6 +1,6 @@
 # oh-my-tokens
 
-A local-first usage dashboard for your AI coding tools — **Codex**, **TraeX**, **Claude Code**, **DeepSeek**, and **Cursor**. See it in a **Chrome popup** or a **macOS menu-bar app**: token counts, estimated cost (totalled across all providers), plan-usage %, and balances at a glance.
+A local-first usage dashboard for your AI coding tools — **Codex**, **TraeX**, **Claude Code**, **DeepSeek**, **Cursor**, and **Kimi Code**. See it in a **Chrome popup** or a **macOS menu-bar app**: token counts, estimated cost (totalled across all providers), plan-usage %, and balances at a glance.
 
 Built for personal and team use: install it, adapt it, and make your own version.
 
@@ -25,7 +25,7 @@ Everything starts from one clone; then you choose *how you want to see* your usa
 
 | Data | 🎫 Menu bar | 🧩 Extension |
 |------|:----------:|:-----------:|
-| Local tokens / cost / requests (Claude Code · Codex · TraeX · DeepSeek) | ✅ | ✅ |
+| Local tokens / cost / requests (Claude Code · Codex · TraeX · Kimi Code · DeepSeek) | ✅ | ✅ |
 | Cursor tokens / cost / plan-usage % | ✅ | ✅ |
 | Codex quota % from local canonical `rate_limits` | ✅¹ | ✅ |
 | Claude.ai plan usage + newer Codex browser analytics | ↳ from the extension² | ✅ |
@@ -94,9 +94,9 @@ analytics record.
 
 - macOS or Windows, **Node ≥ 18**. The extension needs Chrome / Edge / Chromium; the
   menu-bar path installs **SwiftBar** for you (macOS only).
-- Claude Code, Codex, and/or TraeX used on this machine (logs in `~/.claude/` / `~/.codex/` /
-  `~/.trae/cli`, i.e. `%USERPROFILE%\.claude` / `%USERPROFILE%\.codex` /
-  `%USERPROFILE%\.trae\cli` on Windows).
+- Claude Code, Codex, TraeX, and/or Kimi Code used on this machine (logs in `~/.claude/` /
+  `~/.codex/` / `~/.trae/cli` / `~/.kimi-code`, i.e. `%USERPROFILE%\.claude` / `%USERPROFILE%\.codex` /
+  `%USERPROFILE%\.trae\cli` / `%USERPROFILE%\.kimi-code` on Windows).
 
 ### DeepSeek API key (optional)
 
@@ -143,7 +143,7 @@ These tools track usage separately (or not in a glanceable way). `oh-my-tokens` 
 One **Native Messaging host** (log parsers + a DeepSeek client + a standalone Cursor fetch) feeds two independent viewers. No long-running daemon and no open port: the host runs on demand, reads logs / calls APIs, returns JSON, and exits.
 
 ```
-  Chrome extension (popup) ─┐                         ┌─▶ ~/.claude, ~/.codex, ~/.trae/cli
+  Chrome extension (popup) ─┐                         ┌─▶ ~/.claude, ~/.codex, ~/.trae/cli, ~/.kimi-code
                             ├─▶  Native host  ───────▶├─▶ api.deepseek.com      (balance, your key)
   macOS menu bar (SwiftBar)─┘    (on-demand)          └─▶ cursor.com            (your saved cookie)
 ```
@@ -160,10 +160,11 @@ Cloudflare.
 | **Claude Code** | local JSONL `~/.claude/projects/**/*.jsonl` | per-message tokens + estimated cost by model |
 | **Codex** | local `~/.codex/sessions/` + `archived_sessions/` canonical `rate_limits` snapshots; browser analytics cache when the extension can read it | session tokens + estimated cost (OpenRouter list price for supported exact models) + local 5h/weekly quota, plan, reset; newer browser analytics may replace the same window |
 | **TraeX** | local JSONL `$TRAE_CLI_HOME/sessions/**` or `~/.trae/cli/sessions/**` | session tokens + estimated cost when the model is priced + quota %/credits when `rate_limits` are present |
+| **Kimi Code** | local `~/.kimi-code/sessions/**/wire.jsonl` | per-turn tokens by model (no cost estimate — no authoritative price source yet) |
 | **DeepSeek** | DeepSeek API (balance) + platform.deepseek.com (token usage) | balance + per-model per-day token usage |
 | **Cursor** | cursor.com dashboard API (popup; **and the menu-bar host standalone, via your saved cookie**) + local sqlite fallback | per-model tokens + estimated cost, quota %; prompts login when signed out |
 
-Codex, TraeX, Claude Code, and Cursor **quota %** render as progress bars; DeepSeek shows balance. Cost figures are **estimates, not billing** — Claude uses a published price table; Codex uses static OpenRouter list prices for GPT-5.6 Luna, Terra, and Sol (including Pro variants), then falls back to the generic GPT estimate for other model names; TraeX uses the same generic estimate when its model names match it; Cursor uses its own per-event reported value. Edit `host/pricing.js` to update the static table. In the **menu bar**, Codex quota comes from the latest local canonical snapshot (not a live fetch); if the extension has newer browser analytics, the menu bar keeps that newer record per quota window. Claude.ai remains extension-provided, while Cursor remains standalone.
+Codex, TraeX, Claude Code, and Cursor **quota %** render as progress bars; DeepSeek shows balance. Cost figures are **estimates, not billing** — Claude uses a published price table; Codex uses static OpenRouter list prices for GPT-5.6 Luna, Terra, and Sol (including Pro variants), then falls back to the generic GPT estimate for other model names; TraeX uses the same generic estimate when its model names match it; Cursor uses its own per-event reported value; Kimi Code shows tokens only, no cost (no authoritative price source yet). Edit `host/pricing.js` to update the static table. In the **menu bar**, Codex quota comes from the latest local canonical snapshot (not a live fetch); if the extension has newer browser analytics, the menu bar keeps that newer record per quota window. Claude.ai remains extension-provided, while Cursor remains standalone.
 
 ## Repo layout
 
@@ -171,7 +172,7 @@ Codex, TraeX, Claude Code, and Cursor **quota %** render as progress bars; DeepS
 oh-my-tokens/
 ├─ extension/   # MV3 Chrome extension (no build step, no deps)
 ├─ host/        # Native Messaging host (log parsers + DeepSeek client + standalone Cursor fetch)
-│  └─ parsers/  # claude / codex / traex / deepseek / cursor
+│  └─ parsers/  # claude / codex / traex / deepseek / cursor / kimi
 ├─ menubar/     # macOS menu-bar app (SwiftBar plugin + installer)
 ├─ shared/      # UsageRecord schema
 └─ README.md

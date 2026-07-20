@@ -1,6 +1,6 @@
 # oh-my-tokens — macOS menu bar (SwiftBar plugin)
 
-Shows your AI coding tool usage (Claude Code / Codex / TraeX / Cursor / DeepSeek) in the macOS
+Shows your AI coding tool usage (Claude Code / Codex / TraeX / Cursor / DeepSeek / Kimi Code) in the macOS
 menu bar, without opening Chrome. It reuses the existing native host for local token / cost /
 request numbers and canonical Codex `rate_limits` quota snapshots. A popup-written browser
 analytics cache can add Claude.ai usage and replace an older Codex quota record for the same
@@ -64,6 +64,7 @@ all providers/models**, and the dropdown shows each provider/model flat (one gla
 - **TraeX** — tokens from local logs × the same assumed price table when the model name is priced.
 - **Cursor** — real per-model tokens + cost fetched standalone from cursor.com's usage
   events (`cursor-usage.js`); the cost is Cursor's own reported per-event value.
+- **Kimi Code** — tokens from local logs (`~/.kimi-code` wire files), no cost (no price source yet).
 All costs are **estimates, not billing** (flagged in the dropdown).
 
 ## Scope / limits

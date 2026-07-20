@@ -11,8 +11,9 @@ const PROVIDER_NAMES = {
   traex: "TraeX",
   deepseek: "DeepSeek",
   cursor: "Cursor",
+  kimi: "Kimi Code",
 };
-const ALL_PROVIDERS = ["claude-code", "codex", "traex", "deepseek", "cursor"];
+const ALL_PROVIDERS = ["claude-code", "codex", "traex", "deepseek", "cursor", "kimi"];
 let activeProviders = ALL_PROVIDERS;
 
 const _compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });

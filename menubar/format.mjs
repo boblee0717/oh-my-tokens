@@ -17,8 +17,9 @@ const PROVIDER_LABEL = {
   traex: "TraeX",
   cursor: "Cursor",
   deepseek: "DeepSeek",
+  kimi: "Kimi Code",
 };
-const PROVIDER_ORDER = ["claude-code", "codex", "traex", "cursor", "deepseek"];
+const PROVIDER_ORDER = ["claude-code", "codex", "traex", "cursor", "deepseek", "kimi"];
 
 function abbr(n) {
   n = Number(n) || 0;
