@@ -13,6 +13,10 @@ Key decisions and incident records shared across agent sessions.
   SwiftBar `templateImage`. Style persisted in `~/.oh-my-tokens/menubar-prefs.json`
   via the plugin's `--set-style` action; `OMT_TITLE_STYLE` overrides; tests must
   isolate `OMT_MENUBAR_PREFS`. Quota merge moved BEFORE title rendering.
+  The badge font covers 0-9, `%` and all of A-Z; H/M/N/W are deliberately differentiated
+  by where the weight sits, since 3 columns can't hold real diagonals. `quotaBuckets()`
+  renders providers outside `PROVIDER_ORDER` after the known ones instead of dropping
+  them, so a cache from a newer extension doesn't silently lose buckets.
 - **Kimi standalone quota** (`host/kimi-quota.js`, wired into `refresh-quota.js` at a
   90s throttle): `GET api.kimi.com/coding/v1/usages` — the endpoint behind the CLI's
   `/usage` panel, reverse-engineered from the CLI binary. Payload is proto-JSON:
@@ -31,8 +35,15 @@ Key decisions and incident records shared across agent sessions.
   server REQUIRES `client_id` (400 invalid_request without it) — the public
   device-flow id is NOT hardcoded in our repo: `resolveClientId()` extracts it from
   the local CLI binary at runtime (exactly one `clientId: "<uuid>"` in the embedded
-  JS), cached by binary mtime in `~/.oh-my-tokens/kimi-client-id.json`
-  (`OMT_KIMI_CLIENT_ID` overrides).
+  JS), scanning it in 1MB chunks with an 80-char carry (never a 160MB read) and caching
+  by binary mtime in `~/.oh-my-tokens/kimi-client-id.json` (`OMT_KIMI_CLIENT_ID`
+  overrides).
+- **`needs_login` means the credential is genuinely bad**, nothing else: a missing or
+  unparseable credentials file, an unresolvable client id, or a rejected grant (401/403/
+  `invalid_grant`). Timeouts and other token-endpoint statuses return `error`, because a
+  `needs_login` there would put a "Log in to Kimi Code" prompt in the menu bar while the
+  session is fine. Errors carry a `needsLogin` flag (`loginError()`) rather than being
+  classified by message.
 
 ## 2026-07-20: Kimi Code integration
 

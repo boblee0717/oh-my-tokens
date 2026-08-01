@@ -618,3 +618,40 @@ test("default style is the classic headline even with quota data", async () => {
 
   assert.equal(out.split("\n")[0], "🎫 $1.50 | sfimage=ticket");
 });
+
+test("a provider missing from PROVIDER_ORDER still gets a bucket", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "omt-format-buckets-unknown-"));
+  const quotaCache = join(dir, "quota-cache.json");
+  const usageCache = join(dir, "usage-cache.json");
+  await writeFile(usageCache, JSON.stringify({ records: [] }));
+  // A cache written by a newer extension than this formatter: the provider isn't in
+  // PROVIDER_ORDER, and its short name needs letters (G, N) the badge font must cover.
+  await writeFile(
+    quotaCache,
+    JSON.stringify({
+      savedAt: "2026-07-31T08:00:00.000Z",
+      records: [
+        {
+          id: "gemini::quota:5h:quota_percent",
+          provider: "gemini",
+          metricType: "quota_percent",
+          usedPercent: 40,
+          windowLabel: "5h",
+          updatedAt: "2026-07-31T08:00:00.000Z",
+        },
+      ],
+    }),
+  );
+
+  const out = await runFormat(
+    { generatedAt: "2026-07-31T08:01:00.000Z", errors: [], records: [] },
+    { OMT_QUOTA_CACHE: quotaCache, OMT_USAGE_CACHE: usageCache, OMT_TITLE_STYLE: "png" },
+  );
+
+  const m = out.split("\n")[0].match(/^\s*\| templateImage=(.+)$/);
+  assert.ok(m, "unknown provider should still render a bucket, not fall back to the headline");
+  const png = Buffer.from(m[1], "base64");
+  // One bucket: cell = 6 + max("60%"=11, "GEMINI"=23) + 3 = 32, trailing gap trimmed.
+  assert.equal(png.readUInt32BE(16), 29);
+  assert.equal(png.readUInt32BE(20), 20);
+});

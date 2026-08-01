@@ -1,3 +1,4 @@
+import { createReadStream } from "node:fs";
 import { readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -45,9 +46,32 @@ function clientIdCachePath() {
   );
 }
 
+const CLIENT_ID_RE = /clientId:\s*"([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})"/;
+// Longest possible match is `clientId: "<36-char uuid>"` ≈ 50 chars; carrying this much
+// text between chunks keeps a match that straddles a chunk boundary findable.
+const CLIENT_ID_CARRY = 80;
+
+// The CLI binary is ~160MB, so scan it a megabyte at a time instead of materialising the
+// whole thing as a Buffer plus a latin1 string.
+async function scanForClientId(bin) {
+  const stream = createReadStream(bin, { highWaterMark: 1 << 20 });
+  let carry = "";
+  try {
+    for await (const chunk of stream) {
+      const text = carry + chunk.toString("latin1");
+      const m = CLIENT_ID_RE.exec(text);
+      if (m) return m[1];
+      carry = text.slice(-CLIENT_ID_CARRY);
+    }
+  } finally {
+    stream.destroy();
+  }
+  return null;
+}
+
 // Extract the CLI's public OAuth client_id from its own binary (exactly one
 // `clientId: "<uuid>"` constant exists in the embedded JS), cached by binary mtime
-// so the ~160MB scan happens only after a CLI upgrade. OMT_KIMI_CLIENT_ID overrides.
+// so the scan happens only after a CLI upgrade. OMT_KIMI_CLIENT_ID overrides.
 export async function resolveClientId() {
   if (process.env.OMT_KIMI_CLIENT_ID) return process.env.OMT_KIMI_CLIENT_ID;
   const bin = cliBinaryPath();
@@ -58,25 +82,42 @@ export async function resolveClientId() {
       if (cached?.clientId && cached?.mtimeMs === st.mtimeMs) return cached.clientId;
     } catch {
     }
-    const m = /clientId:\s*"([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})"/.exec(
-      (await readFile(bin)).toString("latin1"),
-    );
-    if (!m) return null;
+    const clientId = await scanForClientId(bin);
+    if (!clientId) return null;
     await writeFile(
       clientIdCachePath(),
-      JSON.stringify({ mtimeMs: st.mtimeMs, clientId: m[1] }),
+      JSON.stringify({ mtimeMs: st.mtimeMs, clientId }),
       { mode: 0o600 },
     ).catch(() => {});
-    return m[1];
+    return clientId;
   } catch {
     return null;
   }
 }
 
+// Marks the failures that really mean "the user must sign in again", as opposed to a
+// network blip or a bad day at the token endpoint — only these may surface a login prompt.
+function loginError(message) {
+  const e = new Error(message);
+  e.needsLogin = true;
+  return e;
+}
+
 async function readTokenFile() {
-  const parsed = JSON.parse(await readFile(credentialsPath(), "utf8"));
+  let raw;
+  try {
+    raw = await readFile(credentialsPath(), "utf8");
+  } catch {
+    throw loginError("no Kimi Code credentials file");
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw loginError("unreadable Kimi Code credentials file");
+  }
   if (typeof parsed?.access_token !== "string" || typeof parsed?.refresh_token !== "string") {
-    throw new Error("no managed token");
+    throw loginError("no managed token");
   }
   return parsed;
 }
@@ -133,6 +174,9 @@ async function refreshOnce(clientId, refreshToken) {
   }
   const err = new Error(`refresh failed (HTTP ${status})`);
   err.invalidGrant = status === 401 || status === 403 || data?.error === "invalid_grant";
+  // A rejected grant means re-auth; any other status is the server's problem, not the
+  // user's login, so it must not be reported as needs_login.
+  err.needsLogin = err.invalidGrant;
   throw err;
 }
 
@@ -142,7 +186,9 @@ async function ensureAccessToken() {
   const nowS = Math.floor(Date.now() / 1000);
   if (Number(tok.expires_at) - nowS > REFRESH_SKEW_S) return tok.access_token;
   const clientId = await resolveClientId();
-  if (!clientId) throw new Error("cannot resolve the Kimi Code CLI's OAuth client id");
+  // No resolvable client id means no usable local CLI install — treat it like a missing
+  // credential (prompt the user) rather than a transient failure.
+  if (!clientId) throw loginError("cannot resolve the Kimi Code CLI's OAuth client id");
   try {
     const fresh = await refreshOnce(clientId, tok.refresh_token);
     await writeTokenFile(tok, fresh);
@@ -286,8 +332,10 @@ export async function fetchKimiQuota() {
   let token;
   try {
     token = await ensureAccessToken();
-  } catch {
-    return { status: "needs_login", records: [] };
+  } catch (e) {
+    // A timeout or a 5xx from the token endpoint would otherwise claim the session died
+    // and put a "Log in to Kimi Code" prompt in the menu bar while nothing is wrong.
+    return { status: e?.needsLogin ? "needs_login" : "error", records: [] };
   }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 8000);

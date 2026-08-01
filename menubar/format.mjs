@@ -95,9 +95,11 @@ function encodePng(width, height, rgba) {
   ]);
 }
 
-// 3x5 bitmap font for the corner badges (one 3-bit row per entry, MSB = left).
-// Covers digits + "%" + the letters used by provider short names (rendered uppercase —
-// 3x5 lowercase descenders like "p" don't fit five rows).
+// 3x5 bitmap font for the corner badges (one 3-bit row per entry, MSB = left). Digits +
+// "%" + the full uppercase alphabet, so a provider id we haven't seen yet still renders
+// (lowercase is out — 3x5 has no room for descenders like "p"). At this size a few pairs
+// need deliberate asymmetry to stay apart: M is top-heavy vs W bottom-heavy, and N keeps
+// only the top diagonal so it doesn't collide with either.
 const GLYPHS = {
   "0": [7, 5, 5, 5, 7],
   "1": [2, 6, 2, 2, 7],
@@ -111,24 +113,37 @@ const GLYPHS = {
   "9": [7, 5, 7, 1, 7],
   "%": [5, 1, 2, 4, 5],
   A: [2, 5, 7, 5, 5],
+  B: [6, 5, 6, 5, 6],
   C: [3, 4, 4, 4, 3],
   D: [6, 5, 5, 5, 6],
   E: [7, 4, 6, 4, 7],
+  F: [7, 4, 6, 4, 4],
+  G: [3, 4, 5, 5, 3],
+  H: [5, 5, 7, 5, 5],
   I: [7, 2, 2, 2, 7],
+  J: [1, 1, 1, 5, 2],
   K: [5, 5, 6, 5, 5],
   L: [4, 4, 4, 4, 7],
   M: [5, 7, 7, 5, 5],
+  N: [5, 7, 5, 5, 5],
   O: [2, 5, 5, 5, 2],
   P: [6, 5, 6, 4, 4],
+  Q: [2, 5, 5, 5, 3],
   R: [6, 5, 6, 5, 5],
   S: [3, 4, 2, 1, 6],
   T: [7, 2, 2, 2, 2],
   U: [5, 5, 5, 5, 7],
+  V: [5, 5, 5, 5, 2],
+  W: [5, 5, 7, 7, 5],
   X: [5, 5, 2, 5, 5],
+  Y: [5, 5, 2, 2, 2],
+  Z: [7, 1, 2, 4, 7],
 };
 const PROVIDER_SHORT = { "claude-code": "claude" };
 function providerShort(p) {
-  return (PROVIDER_SHORT[p] || p).toUpperCase();
+  // Drop anything the font can't draw: an unrenderable char would still reserve badge
+  // width and then leave a hole (a provider id with a digit or letter is unaffected).
+  return [...(PROVIDER_SHORT[p] || p).toUpperCase()].filter((ch) => GLYPHS[ch]).join("");
 }
 
 // Each bucket is a cell: bucket on the left, remaining-% badge on its top-right
@@ -139,7 +154,7 @@ function providerShort(p) {
 function bucketsPng(buckets) {
   const BUCKET_W = 9, BUCKET_H = 14, BUCKET_Y = 3;
   const GAP = 3, GROUP_GAP = 7, NAME_Y = 15, HEIGHT = 20;
-  const textW = (t) => t.length * 4 - 1;
+  const textW = (t) => (t.length ? t.length * 4 - 1 : 0);
   // ---- layout ----
   const groups = [];
   for (const b of buckets) {
@@ -156,7 +171,7 @@ function bucketsPng(buckets) {
       const name = providerShort(b.provider);
       laid.push({ b, x });
       badges.push({ text: pct, left: x + BUCKET_W - 3, top: 0 });
-      badges.push({ text: name, left: x + BUCKET_W - 3, top: NAME_Y });
+      if (name) badges.push({ text: name, left: x + BUCKET_W - 3, top: NAME_Y });
       x += BUCKET_W - 3 + Math.max(textW(pct), textW(name)) + GAP;
     }
     x += GROUP_GAP - GAP;
@@ -227,8 +242,12 @@ function windowRank(label) {
 function quotaBuckets(quotaRecords) {
   const byProv = {};
   for (const q of quotaRecords) (byProv[q.provider] ??= []).push(q);
+  // Known providers in the canonical order, then anything else the cache holds — a
+  // provider written by a newer extension than this formatter still gets a bucket
+  // instead of disappearing from the title.
+  const order = [...PROVIDER_ORDER, ...Object.keys(byProv).filter((p) => !PROVIDER_ORDER.includes(p))];
   const buckets = [];
-  for (const p of PROVIDER_ORDER) {
+  for (const p of order) {
     const list = [];
     for (const q of byProv[p] || []) {
       const used = Number(q.usedPercent);

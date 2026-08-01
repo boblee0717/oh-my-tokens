@@ -91,6 +91,83 @@ test("resolveClientId extracts the id from the CLI binary and caches it by mtime
   }
 });
 
+test("resolveClientId finds an id straddling a read-stream chunk boundary", async () => {
+  const { mkdtemp, writeFile } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { resolveClientId } = await import("../kimi-quota.js");
+
+  const dir = await mkdtemp(join(tmpdir(), "omt-kimi-chunk-"));
+  const bin = join(dir, "kimi");
+  const cache = join(dir, "client-id.json");
+  // The real binary is scanned a megabyte at a time; park the constant so it spans the
+  // first chunk boundary, which only matches if the carry-over between chunks is kept.
+  const constant = 'clientId: "deadbeef-1111-2222-3333-444444444444"';
+  await writeFile(bin, "x".repeat((1 << 20) - 24) + constant + "x".repeat(1024));
+
+  const savedEnv = { ...process.env };
+  try {
+    process.env.OMT_KIMI_CLI_BINARY = bin;
+    process.env.OMT_KIMI_CLIENT_ID_CACHE = cache;
+    delete process.env.OMT_KIMI_CLIENT_ID;
+    assert.equal(await resolveClientId(), "deadbeef-1111-2222-3333-444444444444");
+  } finally {
+    for (const k of ["OMT_KIMI_CLI_BINARY", "OMT_KIMI_CLIENT_ID_CACHE", "OMT_KIMI_CLIENT_ID"]) {
+      if (savedEnv[k] === undefined) delete process.env[k];
+      else process.env[k] = savedEnv[k];
+    }
+  }
+});
+
+test("fetchKimiQuota only reports needs_login for real auth failures", async () => {
+  const { mkdtemp, readFile, writeFile } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { fetchKimiQuota } = await import("../kimi-quota.js");
+
+  const dir = await mkdtemp(join(tmpdir(), "omt-kimi-status-"));
+  const creds = join(dir, "kimi-code.json");
+  const stored = { access_token: "expired", refresh_token: "r1", expires_at: 1 };
+  await writeFile(creds, JSON.stringify(stored));
+
+  const savedEnv = { ...process.env };
+  const savedFetch = globalThis.fetch;
+  const jsonResponse = (status, body) => ({
+    status,
+    ok: status >= 200 && status < 300,
+    json: async () => body,
+  });
+  try {
+    process.env.OMT_KIMI_CREDENTIALS = creds;
+    process.env.OMT_KIMI_CLIENT_ID = "deadbeef-0000-0000-0000-000000000000";
+
+    // The access token is expired, so every case below goes through the refresh endpoint.
+    globalThis.fetch = async () => {
+      throw new Error("ECONNRESET");
+    };
+    assert.deepEqual(await fetchKimiQuota(), { status: "error", records: [] });
+
+    globalThis.fetch = async () => jsonResponse(503, {});
+    assert.deepEqual(await fetchKimiQuota(), { status: "error", records: [] });
+
+    globalThis.fetch = async () => jsonResponse(400, { error: "invalid_grant" });
+    assert.deepEqual(await fetchKimiQuota(), { status: "needs_login", records: [] });
+
+    // A failed refresh must never rewrite the CLI's credentials.
+    assert.deepEqual(JSON.parse(await readFile(creds, "utf8")), stored);
+
+    process.env.OMT_KIMI_CREDENTIALS = join(dir, "absent.json");
+    globalThis.fetch = async () => jsonResponse(200, {});
+    assert.deepEqual(await fetchKimiQuota(), { status: "needs_login", records: [] });
+  } finally {
+    globalThis.fetch = savedFetch;
+    for (const k of ["OMT_KIMI_CREDENTIALS", "OMT_KIMI_CLIENT_ID"]) {
+      if (savedEnv[k] === undefined) delete process.env[k];
+      else process.env[k] = savedEnv[k];
+    }
+  }
+});
+
 test("writeTokenFile keeps fields the refresh response doesn't cover and leaves no temp file", async () => {
   const { mkdtemp, readdir, readFile, writeFile } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
