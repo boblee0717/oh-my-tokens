@@ -2,6 +2,34 @@
 
 Key decisions and incident records shared across agent sessions.
 
+
+## 2026-08-01: Menu-bar quota-bucket title + Kimi standalone quota (PR #1)
+
+- **Bucket title** (`menubar/format.mjs`): opt-in style, default stays the classic 🎫
+  headline. One bucket per quota window, grouped by provider (shortest window first),
+  filled with REMAINING %; remaining-% badge top-right + provider badge bottom-right,
+  both overlapping the corner with a 1px knockout halo (readable over full buckets).
+  Pure-Node PNG (zlib + hand-rolled chunks + 3x5 bitmap font — NO deps) emitted as
+  SwiftBar `templateImage`. Style persisted in `~/.oh-my-tokens/menubar-prefs.json`
+  via the plugin's `--set-style` action; `OMT_TITLE_STYLE` overrides; tests must
+  isolate `OMT_MENUBAR_PREFS`. Quota merge moved BEFORE title rendering.
+- **Kimi standalone quota** (`host/kimi-quota.js`, wired into `refresh-quota.js` at a
+  90s throttle): `GET api.kimi.com/coding/v1/usages` — the endpoint behind the CLI's
+  `/usage` panel, reverse-engineered from the CLI binary. Payload is proto-JSON:
+  numeric strings, weekly summary has `limit`+`remaining` (used = limit − remaining),
+  the 5h window arrives as 300 minutes. Maps to quota_percent "weekly" + "5h",
+  planType from `user.membership.level`.
+- **Bob approved reading `~/.kimi-code/credentials/kimi-code.json`** (option C) — a
+  narrow exception to the 2026-07-20 "never read credentials/" rule: this ONE file
+  only; the token is never logged or persisted elsewhere; on refresh (tokens live
+  900s) the rotated tokens are written BACK like the CLI (mode 600); `invalid_grant`
+  → re-read once and retry. Refresh = `POST auth.kimi.com/api/oauth/token`; the
+  server REQUIRES `client_id` (400 invalid_request without it) — the public
+  device-flow id is NOT hardcoded in our repo: `resolveClientId()` extracts it from
+  the local CLI binary at runtime (exactly one `clientId: "<uuid>"` in the embedded
+  JS), cached by binary mtime in `~/.oh-my-tokens/kimi-client-id.json`
+  (`OMT_KIMI_CLIENT_ID` overrides).
+
 ## 2026-07-20: Kimi Code integration
 
 - **Kimi Code — local parser** (`host/parsers/kimi.js`): reads `~/.kimi-code/sessions/**/wire.jsonl`

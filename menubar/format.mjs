@@ -10,6 +10,7 @@
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { deflateSync } from "node:zlib";
 
 const PROVIDER_LABEL = {
   "claude-code": "Claude Code",
@@ -41,6 +42,213 @@ function pctStr(n) {
 function bar(n) {
   const filled = Math.round(Math.max(0, Math.min(100, Number(n) || 0)) / 12.5);
   return "▰".repeat(filled) + "▱".repeat(8 - filled);
+}
+
+// ----- menu-bar title: classic 🎫 cost/tokens headline by default; an opt-in
+// "buckets" style draws one bucket per quota window filled with the REMAINING
+// capacity (100 - usedPercent). Switchable from the dropdown (persisted in
+// menubar-prefs.json) or OMT_TITLE_STYLE.
+
+
+// Minimal PNG encoder (8-bit RGBA, filter "none") — no deps, so the formatter can
+// draw the buckets image itself. SwiftBar's templateImage only uses the alpha
+// channel, so we emit pure alpha "ink" and macOS re-tints it for light/dark menus.
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(buf) {
+  let c = 0xffffffff;
+  for (const b of buf) c = CRC_TABLE[(c ^ b) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+function pngChunk(type, data) {
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(data.length, 0);
+  const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(body), 0);
+  return Buffer.concat([len, body, crc]);
+}
+function encodePng(width, height, rgba) {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 6; // color type RGBA
+  const stride = width * 4;
+  const raw = Buffer.alloc((stride + 1) * height);
+  for (let y = 0; y < height; y++) {
+    raw[y * (stride + 1)] = 0; // filter: none
+    Buffer.from(rgba.buffer, rgba.byteOffset + y * stride, stride).copy(raw, y * (stride + 1) + 1);
+  }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk("IHDR", ihdr),
+    pngChunk("IDAT", deflateSync(raw)),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
+// 3x5 bitmap font for the corner badges (one 3-bit row per entry, MSB = left).
+// Covers digits + "%" + the letters used by provider short names (rendered uppercase —
+// 3x5 lowercase descenders like "p" don't fit five rows).
+const GLYPHS = {
+  "0": [7, 5, 5, 5, 7],
+  "1": [2, 6, 2, 2, 7],
+  "2": [7, 1, 7, 4, 7],
+  "3": [7, 1, 7, 1, 7],
+  "4": [5, 5, 7, 1, 1],
+  "5": [7, 4, 7, 1, 7],
+  "6": [7, 4, 7, 5, 7],
+  "7": [7, 1, 2, 2, 2],
+  "8": [7, 5, 7, 5, 7],
+  "9": [7, 5, 7, 1, 7],
+  "%": [5, 1, 2, 4, 5],
+  A: [2, 5, 7, 5, 5],
+  C: [3, 4, 4, 4, 3],
+  D: [6, 5, 5, 5, 6],
+  E: [7, 4, 6, 4, 7],
+  I: [7, 2, 2, 2, 7],
+  K: [5, 5, 6, 5, 5],
+  L: [4, 4, 4, 4, 7],
+  M: [5, 7, 7, 5, 5],
+  O: [2, 5, 5, 5, 2],
+  P: [6, 5, 6, 4, 4],
+  R: [6, 5, 6, 5, 5],
+  S: [3, 4, 2, 1, 6],
+  T: [7, 2, 2, 2, 2],
+  U: [5, 5, 5, 5, 7],
+  X: [5, 5, 2, 5, 5],
+};
+const PROVIDER_SHORT = { "claude-code": "claude" };
+function providerShort(p) {
+  return (PROVIDER_SHORT[p] || p).toUpperCase();
+}
+
+// Each bucket is a cell: bucket on the left, remaining-% badge on its top-right
+// corner and provider short name on its bottom-right corner — both stick out 3px onto
+// the bucket and use the same 1px knockout halo, so they stay readable over a full
+// bucket. Cells widen to fit the wider of the two badges, so neighbours never
+// collide. Buckets of one provider stay adjacent (shortest window first).
+function bucketsPng(buckets) {
+  const BUCKET_W = 9, BUCKET_H = 14, BUCKET_Y = 3;
+  const GAP = 3, GROUP_GAP = 7, NAME_Y = 15, HEIGHT = 20;
+  const textW = (t) => t.length * 4 - 1;
+  // ---- layout ----
+  const groups = [];
+  for (const b of buckets) {
+    const g = groups[groups.length - 1];
+    if (g && g.provider === b.provider) g.items.push(b);
+    else groups.push({ provider: b.provider, items: [b] });
+  }
+  const laid = [];
+  const badges = []; // { text, left, top }
+  let x = 0;
+  for (const g of groups) {
+    for (const b of g.items) {
+      const pct = `${Math.round(b.remaining)}%`;
+      const name = providerShort(b.provider);
+      laid.push({ b, x });
+      badges.push({ text: pct, left: x + BUCKET_W - 3, top: 0 });
+      badges.push({ text: name, left: x + BUCKET_W - 3, top: NAME_Y });
+      x += BUCKET_W - 3 + Math.max(textW(pct), textW(name)) + GAP;
+    }
+    x += GROUP_GAP - GAP;
+  }
+  const width = x - (GROUP_GAP - GAP) - GAP;
+  const px = new Uint8Array(width * HEIGHT * 4);
+  const ink = (xx, yy) => {
+    if (xx >= 0 && xx < width && yy >= 0 && yy < HEIGHT) px[(yy * width + xx) * 4 + 3] = 255;
+  };
+  const erase = (xx, yy) => {
+    if (xx >= 0 && xx < width && yy >= 0 && yy < HEIGHT) px[(yy * width + xx) * 4 + 3] = 0;
+  };
+  const drawText = ({ text, left, top }) => {
+    for (let yy = top - 1; yy <= top + 5; yy++)
+      for (let xx = left - 1; xx <= left + textW(text); xx++) erase(xx, yy);
+    [...text].forEach((ch, ci) => {
+      const g = GLYPHS[ch];
+      if (!g) return;
+      for (let r = 0; r < 5; r++)
+        for (let c = 0; c < 3; c++) if (g[r] & (4 >> c)) ink(left + ci * 4 + c, top + r);
+    });
+  };
+  // ---- draw ----
+  for (const { b, x: x0 } of laid) {
+    for (let xx = 0; xx < BUCKET_W; xx++) {
+      ink(x0 + xx, BUCKET_Y);
+      ink(x0 + xx, BUCKET_Y + BUCKET_H - 1);
+    }
+    for (let yy = 0; yy < BUCKET_H; yy++) {
+      ink(x0, BUCKET_Y + yy);
+      ink(x0 + BUCKET_W - 1, BUCKET_Y + yy);
+    }
+    const innerH = BUCKET_H - 2;
+    const fill = Math.round((Math.max(0, Math.min(100, Number(b.remaining) || 0)) / 100) * innerH);
+    for (let f = 0; f < fill; f++) {
+      const yy = BUCKET_Y + BUCKET_H - 2 - f;
+      for (let xx = 1; xx < BUCKET_W - 1; xx++) ink(x0 + xx, yy);
+    }
+  }
+  for (const bd of badges) drawText(bd);
+  return encodePng(width, HEIGHT, px);
+}
+
+function menubarPrefsPath() {
+  return process.env.OMT_MENUBAR_PREFS || join(homedir(), ".oh-my-tokens", "menubar-prefs.json");
+}
+function titleStyle() {
+  let s = process.env.OMT_TITLE_STYLE;
+  if (!s) {
+    try {
+      s = JSON.parse(readFileSync(menubarPrefsPath(), "utf8"))?.titleStyle;
+    } catch {
+    }
+  }
+  s = String(s || "classic").toLowerCase();
+  return ["png", "classic"].includes(s) ? s : "classic";
+}
+// Approximate window duration in minutes, for ordering a provider's buckets
+// short-window-first (5h before weekly). Unknown labels sort last (stable).
+function windowRank(label) {
+  if (label === "weekly") return 10080;
+  const m = /^(\d+)([mhdw])$/.exec(label || "");
+  if (!m) return Number.POSITIVE_INFINITY;
+  return Number(m[1]) * { m: 1, h: 60, d: 1440, w: 10080 }[m[2]];
+}
+// One bucket per quota record (provider order, shortest window first within a
+// provider), capped so a pathological cache can't flood the menu bar.
+function quotaBuckets(quotaRecords) {
+  const byProv = {};
+  for (const q of quotaRecords) (byProv[q.provider] ??= []).push(q);
+  const buckets = [];
+  for (const p of PROVIDER_ORDER) {
+    const list = [];
+    for (const q of byProv[p] || []) {
+      const used = Number(q.usedPercent);
+      if (!Number.isFinite(used)) continue;
+      list.push({
+        provider: p,
+        label: q.windowLabel || q.model || "usage",
+        remaining: 100 - Math.max(0, Math.min(100, used)),
+      });
+    }
+    list.sort((a, b) => windowRank(a.label) - windowRank(b.label));
+    buckets.push(...list);
+  }
+  return buckets.slice(0, 8);
+}
+function renderTitleLine(headline, buckets, style) {
+  if (!buckets.length || style === "classic") return `🎫 ${headline} | sfimage=ticket`;
+  // Percentages live in the image as per-bucket badges, so the title is image-only.
+  const b64 = bucketsPng(buckets).toString("base64");
+  return ` | templateImage=${b64}`;
 }
 // System-inspired colors as SwiftBar adaptive "light,dark" pairs: the menu re-tints
 // live when the system appearance changes, so a render from a minute ago (or an Auto
@@ -265,7 +473,14 @@ function updateFooterSuffix(update) {
   const cursorUsage = readUsageCache().filter((r) => r.provider === "cursor");
   if (cursorUsage.length) recs = recs.filter((r) => r.provider !== "cursor").concat(cursorUsage);
 
-  // ----- menu-bar headline: today's estimated cost and total tokens -----
+  // ----- menu-bar title: one "bucket" per quota window showing REMAINING capacity.
+  // Quota % is merged before the title so the title can use it; the dropdown reuses
+  // the same merged records below. With no quota data (or the "classic" style), the
+  // title falls back to today's estimated cost + total tokens.
+  const quota = readQuotaCache();
+  const quotaRecords = mergeQuotaRecords(quota, recs);
+  const buckets = quotaBuckets(quotaRecords);
+  const style = titleStyle();
   const todayCost = recs
     .filter((r) => r.window === "today" && r.metricType === "estimated_cost")
     .reduce((s, r) => s + (Number(r.costUSD) || 0), 0);
@@ -280,13 +495,13 @@ function updateFooterSuffix(update) {
   if (todayCost > 0) headlineParts.push(money(todayCost));
   if (todayTokens > 0) headlineParts.push(`${abbr(todayTokens)} tok`);
   const headline = headlineParts.length ? headlineParts.join(" · ") : "—";
-  line(`🎫 ${headline} | sfimage=ticket`);
+  const titleIsBuckets = buckets.length > 0 && style !== "classic";
+  line(renderTitleLine(headline, buckets, style));
   line("---");
-  line(`oh-my-tokens · today |${item({ color: COL.dim, size: 11 })}`);
+  // When the title shows buckets, keep the cost/token total one click away.
+  line(`oh-my-tokens · today${titleIsBuckets && headline !== "—" ? ` · ${headline}` : ""} |${item({ color: COL.dim, size: 11 })}`);
 
   // ----- plan usage % (popup-written cache + any fresher host quota records) -----
-  const quota = readQuotaCache();
-  const quotaRecords = mergeQuotaRecords(quota, recs);
   writeQuotaSamples(report, recs, quotaRecords);
   if (quotaRecords.length) {
     line("---");
@@ -362,6 +577,19 @@ function updateFooterSuffix(update) {
       roll.push(`${w} ${wcost > 0 ? money(wcost) + " · " : ""}${wreq} req`);
     }
     if (roll.length) line(`${roll.join("    ")} |${item({ color: COL.dim, size: 11, font: "Menlo" })}`);
+  }
+
+  // ----- menu-bar style switcher (writes menubar-prefs.json via the plugin script) -----
+  const pluginScript = process.env.OMT_PLUGIN_SCRIPT;
+  if (pluginScript) {
+    line("---");
+    line(`Menu bar style |${item({ color: COL.dim, size: 11 })}`);
+    const opt = (name, val, img) =>
+      line(
+        `--${name}${style === val ? " ✓" : ""} | bash="${pluginScript}" param1=--set-style param2=${val} terminal=false refresh=true sfimage=${img}`,
+      );
+    opt("Quota buckets · image", "png", "square.lefthalf.filled");
+    opt("Cost · tokens", "classic", "ticket");
   }
 
   // ----- footer -----
