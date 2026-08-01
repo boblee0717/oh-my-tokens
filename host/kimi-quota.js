@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -11,8 +11,12 @@ import { join } from "node:path";
 // The token rotates on every refresh (the response carries a NEW refresh_token), so a
 // refresh must be written back to the same file — the CLI reads it on its next refresh.
 // If our refresh races the CLI's (invalid_grant), re-read the file once and retry.
+//
+// The OAuth client_id (required on refresh — the server rejects client_id-less
+// requests with invalid_request) is NOT hardcoded here: it is a public device-flow
+// identifier baked into the CLI binary, so we extract it from the local installation
+// at runtime and cache it keyed by the binary's mtime.
 
-const CLIENT_ID = "17e5f671-d194-4dfb-9706-5516cb48c098"; // public device-flow client id (from the CLI)
 const REFRESH_SKEW_S = 60; // refresh when the access token expires within a minute
 
 function kimiHome() {
@@ -31,6 +35,42 @@ function oauthHost() {
 function usageUrl() {
   const base = (process.env.KIMI_CODE_BASE_URL || "https://api.kimi.com/coding/v1").replace(/\/+$/, "");
   return `${base}/usages`;
+}
+function cliBinaryPath() {
+  return process.env.OMT_KIMI_CLI_BINARY || join(kimiHome(), "bin", "kimi");
+}
+function clientIdCachePath() {
+  return (
+    process.env.OMT_KIMI_CLIENT_ID_CACHE || join(homedir(), ".oh-my-tokens", "kimi-client-id.json")
+  );
+}
+
+// Extract the CLI's public OAuth client_id from its own binary (exactly one
+// `clientId: "<uuid>"` constant exists in the embedded JS), cached by binary mtime
+// so the ~160MB scan happens only after a CLI upgrade. OMT_KIMI_CLIENT_ID overrides.
+export async function resolveClientId() {
+  if (process.env.OMT_KIMI_CLIENT_ID) return process.env.OMT_KIMI_CLIENT_ID;
+  const bin = cliBinaryPath();
+  try {
+    const st = await stat(bin);
+    try {
+      const cached = JSON.parse(await readFile(clientIdCachePath(), "utf8"));
+      if (cached?.clientId && cached?.mtimeMs === st.mtimeMs) return cached.clientId;
+    } catch {
+    }
+    const m = /clientId:\s*"([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})"/.exec(
+      (await readFile(bin)).toString("latin1"),
+    );
+    if (!m) return null;
+    await writeFile(
+      clientIdCachePath(),
+      JSON.stringify({ mtimeMs: st.mtimeMs, clientId: m[1] }),
+      { mode: 0o600 },
+    ).catch(() => {});
+    return m[1];
+  } catch {
+    return null;
+  }
 }
 
 async function readTokenFile() {
@@ -62,9 +102,9 @@ async function postTokenForm(params) {
   }
 }
 
-async function refreshOnce(refreshToken) {
+async function refreshOnce(clientId, refreshToken) {
   const { status, data } = await postTokenForm({
-    client_id: CLIENT_ID,
+    client_id: clientId,
     grant_type: "refresh_token",
     refresh_token: refreshToken,
   });
@@ -89,8 +129,10 @@ async function ensureAccessToken() {
   const tok = await readTokenFile();
   const nowS = Math.floor(Date.now() / 1000);
   if (Number(tok.expires_at) - nowS > REFRESH_SKEW_S) return tok.access_token;
+  const clientId = await resolveClientId();
+  if (!clientId) throw new Error("cannot resolve the Kimi Code CLI's OAuth client id");
   try {
-    const fresh = await refreshOnce(tok.refresh_token);
+    const fresh = await refreshOnce(clientId, tok.refresh_token);
     await writeTokenFile(fresh);
     return fresh.access_token;
   } catch (e) {
@@ -98,7 +140,7 @@ async function ensureAccessToken() {
     // We raced another refresher (likely the CLI): re-read the rotated token and retry once.
     const tok2 = await readTokenFile();
     if (Number(tok2.expires_at) - Math.floor(Date.now() / 1000) > REFRESH_SKEW_S) return tok2.access_token;
-    const fresh2 = await refreshOnce(tok2.refresh_token);
+    const fresh2 = await refreshOnce(clientId, tok2.refresh_token);
     await writeTokenFile(fresh2);
     return fresh2.access_token;
   }

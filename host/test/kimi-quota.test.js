@@ -55,3 +55,38 @@ test("mapUsagePayload skips rows without a usable limit and tolerates junk", () 
   assert.equal(recs[0].resetsAt, "2026-08-01T00:00:00Z"); // snake_case reset_at accepted
   assert.equal(recs[0].planType, "Kimi Code"); // no membership info -> default
 });
+
+test("resolveClientId extracts the id from the CLI binary and caches it by mtime", async () => {
+  const { mkdtemp, mkdir, writeFile, readFile } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { resolveClientId } = await import("../kimi-quota.js");
+
+  const dir = await mkdtemp(join(tmpdir(), "omt-kimi-clientid-"));
+  const bin = join(dir, "bin", "kimi");
+  const cache = join(dir, "client-id.json");
+  await mkdir(join(dir, "bin"), { recursive: true });
+  await writeFile(bin, 'noise… KIMI_CODE_FLOW_CONFIG = { name: "kimi-code", clientId: "deadbeef-0000-0000-0000-000000000000" } …');
+
+  const savedEnv = { ...process.env };
+  try {
+    process.env.OMT_KIMI_CLI_BINARY = bin;
+    process.env.OMT_KIMI_CLIENT_ID_CACHE = cache;
+    delete process.env.OMT_KIMI_CLIENT_ID;
+
+    assert.equal(await resolveClientId(), "deadbeef-0000-0000-0000-000000000000");
+    // cache was written and is reused (binary replaced with garbage -> mtime change -> re-extract -> null)
+    const cached = JSON.parse(await readFile(cache, "utf8"));
+    assert.equal(cached.clientId, "deadbeef-0000-0000-0000-000000000000");
+    await writeFile(bin, "garbage without an id");
+    assert.equal(await resolveClientId(), null);
+    // env override wins
+    process.env.OMT_KIMI_CLIENT_ID = "11111111-2222-3333-4444-555555555555";
+    assert.equal(await resolveClientId(), "11111111-2222-3333-4444-555555555555");
+  } finally {
+    for (const k of ["OMT_KIMI_CLI_BINARY", "OMT_KIMI_CLIENT_ID_CACHE", "OMT_KIMI_CLIENT_ID"]) {
+      if (savedEnv[k] === undefined) delete process.env[k];
+      else process.env[k] = savedEnv[k];
+    }
+  }
+});
