@@ -1,9 +1,11 @@
 // Standalone quota refresh, run by the menu-bar plugin each cycle. Fetches login-gated
-// plan usage % that the host CAN reach without the browser (currently Cursor, via the
-// saved cursor.com cookie) and merges it into the quota cache the menu bar reads.
+// plan usage % that the host CAN reach without the browser (Cursor via the saved
+// cursor.com cookie; Kimi Code via the local CLI's managed OAuth token) and merges it
+// into the quota cache the menu bar reads.
 // Best-effort and self-throttling — never throws, never blocks the menu bar for long.
 import { fetchCursorQuota } from "./cursor-quota.js";
 import { fetchCursorUsageRecords } from "./cursor-usage.js";
+import { fetchKimiQuota } from "./kimi-quota.js";
 import { mergeQuotaCache, readQuotaCache } from "./quota-cache.js";
 import { writeUsageCache, readUsageCache } from "./usage-cache.js";
 
@@ -31,6 +33,15 @@ function newest(records, provider) {
     if (Date.now() - newest(u.records, "cursor") >= USAGE_THROTTLE_MS) {
       const r = await fetchCursorUsageRecords();
       if (r.status === "ok" || r.status === "needs_login") await writeUsageCache(r.records);
+    }
+  } catch {}
+
+  // Kimi Code plan usage % (light) → quota cache.
+  try {
+    const q = await readQuotaCache();
+    if (Date.now() - newest(q.records, "kimi") >= QUOTA_THROTTLE_MS) {
+      const r = await fetchKimiQuota();
+      if (r.status === "ok" || r.status === "needs_login") await mergeQuotaCache(r.records, ["kimi"]);
     }
   } catch {}
 })();

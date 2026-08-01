@@ -12,7 +12,13 @@ const formatScript = join(here, "format.mjs");
 function runFormat(report, env) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [formatScript], {
-      env: { ...process.env, OMT_DISABLE_QUOTA_SAMPLING: "1", ...env },
+      env: {
+        ...process.env,
+        OMT_DISABLE_QUOTA_SAMPLING: "1",
+        // Isolate from any real ~/.oh-my-tokens/menubar-prefs.json on the dev machine.
+        OMT_MENUBAR_PREFS: join(tmpdir(), "omt-test-menubar-prefs-absent.json"),
+        ...env,
+      },
       stdio: ["pipe", "pipe", "pipe"],
     });
     let stdout = "";
@@ -431,4 +437,184 @@ test("renders and samples TraeX provider records", async () => {
   assert.equal(sample.provider, "traex");
   assert.equal(sample.quota["5h"].usedPercent, 32);
   assert.equal(sample.today.totalTokens, 2300);
+});
+
+test("png style renders a buckets template image with badge text baked in", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "omt-format-buckets-png-"));
+  const quotaCache = join(dir, "quota-cache.json");
+  const usageCache = join(dir, "usage-cache.json");
+  await writeFile(usageCache, JSON.stringify({ records: [] }));
+  await writeFile(
+    quotaCache,
+    JSON.stringify({
+      savedAt: "2026-07-31T08:00:00.000Z",
+      records: [
+        {
+          id: "claude-code::quota:5h:quota_percent",
+          provider: "claude-code",
+          metricType: "quota_percent",
+          usedPercent: 14,
+          windowLabel: "5h",
+          updatedAt: "2026-07-31T08:00:00.000Z",
+        },
+        {
+          id: "claude-code::quota:weekly:quota_percent",
+          provider: "claude-code",
+          metricType: "quota_percent",
+          usedPercent: 50,
+          windowLabel: "weekly",
+          updatedAt: "2026-07-31T08:00:00.000Z",
+        },
+      ],
+    }),
+  );
+
+  const out = await runFormat(
+    { generatedAt: "2026-07-31T08:01:00.000Z", errors: [], records: [] },
+    { OMT_QUOTA_CACHE: quotaCache, OMT_USAGE_CACHE: usageCache, OMT_TITLE_STYLE: "png" },
+  );
+
+  const title = out.split("\n")[0];
+  const m = title.match(/^\s*\| templateImage=(.+)$/);
+  assert.ok(m, `unexpected title: ${title.slice(0, 80)}`);
+  const png = Buffer.from(m[1], "base64");
+  assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  // IHDR: one provider group, 2 buckets; each cell = 6 + max(pct, "CLAUDE"=23) + 3
+  // = 32 wide, trailing cell gap trimmed => 61 total, 20 tall.
+  assert.equal(png.readUInt32BE(16), 61);
+  assert.equal(png.readUInt32BE(20), 20);
+});
+
+test("buckets image lays out one group per provider", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "omt-format-buckets-order-"));
+  const quotaCache = join(dir, "quota-cache.json");
+  const usageCache = join(dir, "usage-cache.json");
+  await writeFile(usageCache, JSON.stringify({ records: [] }));
+  await writeFile(
+    quotaCache,
+    JSON.stringify({
+      savedAt: "2026-07-31T08:00:00.000Z",
+      records: [
+        {
+          id: "cursor::quota:plan:quota_percent",
+          provider: "cursor",
+          metricType: "quota_percent",
+          usedPercent: 20,
+          windowLabel: "plan",
+          updatedAt: "2026-07-31T08:00:00.000Z",
+        },
+        {
+          id: "claude-code::quota:5h:quota_percent",
+          provider: "claude-code",
+          metricType: "quota_percent",
+          usedPercent: 40,
+          windowLabel: "5h",
+          updatedAt: "2026-07-31T08:00:00.000Z",
+        },
+      ],
+    }),
+  );
+
+  const out = await runFormat(
+    { generatedAt: "2026-07-31T08:01:00.000Z", errors: [], records: [] },
+    { OMT_QUOTA_CACHE: quotaCache, OMT_USAGE_CACHE: usageCache, OMT_TITLE_STYLE: "png" },
+  );
+
+  const m = out.split("\n")[0].match(/^\s*\| templateImage=(.+)$/);
+  assert.ok(m, "title should be a template image");
+  const png = Buffer.from(m[1], "base64");
+  // Two single-bucket groups (claude + cursor): cell 6 + max("60%", "CLAUDE"=23) + 3
+  // = 32 each; the first group's trailing cell gap widens to the 7px group gap (net
+  // +4), the last cell gap is trimmed => 32 + 4 + 32 - 3 = 65.
+  assert.equal(png.readUInt32BE(16), 65);
+  assert.equal(png.readUInt32BE(20), 20);
+});
+
+test("classic style keeps the cost headline even with quota data", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "omt-format-buckets-classic-"));
+  const quotaCache = join(dir, "quota-cache.json");
+  const usageCache = join(dir, "usage-cache.json");
+  const prefs = join(dir, "menubar-prefs.json");
+  await writeFile(usageCache, JSON.stringify({ records: [] }));
+  await writeFile(prefs, JSON.stringify({ titleStyle: "classic" }));
+  await writeFile(
+    quotaCache,
+    JSON.stringify({
+      savedAt: "2026-07-31T08:00:00.000Z",
+      records: [
+        {
+          id: "codex::quota:5h:quota_percent",
+          provider: "codex",
+          metricType: "quota_percent",
+          usedPercent: 14,
+          windowLabel: "5h",
+          updatedAt: "2026-07-31T08:00:00.000Z",
+        },
+      ],
+    }),
+  );
+
+  const out = await runFormat(
+    {
+      generatedAt: "2026-07-31T08:01:00.000Z",
+      errors: [],
+      records: [
+        {
+          id: "codex:gpt-5.5:today:estimated_cost",
+          provider: "codex",
+          model: "gpt-5.5",
+          metricType: "estimated_cost",
+          window: "today",
+          costUSD: 2.75,
+        },
+      ],
+    },
+    { OMT_QUOTA_CACHE: quotaCache, OMT_USAGE_CACHE: usageCache, OMT_MENUBAR_PREFS: prefs },
+  );
+
+  assert.equal(out.split("\n")[0], "🎫 $2.75 | sfimage=ticket");
+});
+
+test("default style is the classic headline even with quota data", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "omt-format-buckets-default-"));
+  const quotaCache = join(dir, "quota-cache.json");
+  const usageCache = join(dir, "usage-cache.json");
+  await writeFile(usageCache, JSON.stringify({ records: [] }));
+  await writeFile(
+    quotaCache,
+    JSON.stringify({
+      savedAt: "2026-07-31T08:00:00.000Z",
+      records: [
+        {
+          id: "kimi::quota:weekly:quota_percent",
+          provider: "kimi",
+          metricType: "quota_percent",
+          usedPercent: 2,
+          windowLabel: "weekly",
+          updatedAt: "2026-07-31T08:00:00.000Z",
+        },
+      ],
+    }),
+  );
+
+  // No OMT_TITLE_STYLE, no prefs file -> classic ticket headline, buckets are opt-in.
+  const out = await runFormat(
+    {
+      generatedAt: "2026-07-31T08:01:00.000Z",
+      errors: [],
+      records: [
+        {
+          id: "kimi:k3:today:estimated_cost",
+          provider: "kimi",
+          model: "k3",
+          metricType: "estimated_cost",
+          window: "today",
+          costUSD: 1.5,
+        },
+      ],
+    },
+    { OMT_QUOTA_CACHE: quotaCache, OMT_USAGE_CACHE: usageCache },
+  );
+
+  assert.equal(out.split("\n")[0], "🎫 $1.50 | sfimage=ticket");
 });
