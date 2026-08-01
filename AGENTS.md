@@ -3,7 +3,7 @@
 Key decisions and incident records shared across agent sessions.
 
 
-## 2026-08-01: Menu-bar quota-bucket title + Kimi standalone quota (PR #1)
+## 2026-08-01: Menu-bar quota-bucket title + Kimi standalone quota (PR #3)
 
 - **Bucket title** (`menubar/format.mjs`): opt-in style, default stays the classic 🎫
   headline. One bucket per quota window, grouped by provider (shortest window first),
@@ -19,10 +19,14 @@ Key decisions and incident records shared across agent sessions.
   numeric strings, weekly summary has `limit`+`remaining` (used = limit − remaining),
   the 5h window arrives as 300 minutes. Maps to quota_percent "weekly" + "5h",
   planType from `user.membership.level`.
-- **Bob approved reading `~/.kimi-code/credentials/kimi-code.json`** (option C) — a
-  narrow exception to the 2026-07-20 "never read credentials/" rule: this ONE file
+- **Bob approved reading `~/.kimi-code/credentials/kimi-code.json`** (option C, re-confirmed
+  2026-08-01 when PR #3 merged) — a narrow exception to the 2026-07-20 "never read
+  credentials/" rule, which now points here: this ONE file
   only; the token is never logged or persisted elsewhere; on refresh (tokens live
-  900s) the rotated tokens are written BACK like the CLI (mode 600); `invalid_grant`
+  900s) the rotated tokens are written BACK like the CLI. That write-back overwrites the
+  CLI's own file, so `writeTokenFile()` spreads the previously-read object under the
+  refresh response (keeping fields we don't manage) and swaps the file in via temp +
+  `rename` — a truncated write would log the user out of the CLI. `invalid_grant`
   → re-read once and retry. Refresh = `POST auth.kimi.com/api/oauth/token`; the
   server REQUIRES `client_id` (400 invalid_request without it) — the public
   device-flow id is NOT hardcoded in our repo: `resolveClientId()` extracts it from
@@ -40,8 +44,10 @@ Key decisions and incident records shared across agent sessions.
   double-count). `requests` = LLM turns, not user prompts. No cost estimate (no authoritative
   Kimi Code price source yet — same stance as early Codex). Provider id `kimi`, label "Kimi Code",
   appended at the end of every provider list (popup/background/options/menubar/schema).
-- Never read `~/.kimi-code/credentials/` or `~/.kimi-code/oauth/` — secrets; the parser only
-  walks `sessions/**/wire.jsonl`.
+- Never read `~/.kimi-code/oauth/`, and the *parser* never touches `credentials/` — it only
+  walks `sessions/**/wire.jsonl`. The single approved exception is
+  `credentials/kimi-code.json`, read by `host/kimi-quota.js` alone (see the 2026-08-01 entry);
+  nothing else may widen it.
 
 ## PUSH POLICY (2026-06-26, updated by Bob)
 

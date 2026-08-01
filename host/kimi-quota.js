@@ -1,4 +1,4 @@
-import { readFile, stat, writeFile } from "node:fs/promises";
+import { readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -80,9 +80,21 @@ async function readTokenFile() {
   }
   return parsed;
 }
-async function writeTokenFile(tok) {
-  // Same keys the CLI writes; keep the file owner-only.
-  await writeFile(credentialsPath(), JSON.stringify(tok, null, 2) + "\n", { mode: 0o600 });
+// We overwrite the CLI's own credentials file, so carry over every field we don't manage
+// (the refresh response only covers the token keys) and swap the file in atomically — a
+// half-written file here would log the user out of the Kimi Code CLI. Exported for tests.
+export async function writeTokenFile(previous, fresh) {
+  const path = credentialsPath();
+  const tmp = `${path}.omt-${process.pid}.tmp`;
+  // The mode applies to the fresh temp file, so the result is owner-only even though the
+  // destination already exists (writeFile ignores mode for existing files).
+  await writeFile(tmp, JSON.stringify({ ...previous, ...fresh }, null, 2) + "\n", { mode: 0o600 });
+  try {
+    await rename(tmp, path);
+  } catch (e) {
+    await rm(tmp, { force: true }).catch(() => {});
+    throw e;
+  }
 }
 
 async function postTokenForm(params) {
@@ -133,7 +145,7 @@ async function ensureAccessToken() {
   if (!clientId) throw new Error("cannot resolve the Kimi Code CLI's OAuth client id");
   try {
     const fresh = await refreshOnce(clientId, tok.refresh_token);
-    await writeTokenFile(fresh);
+    await writeTokenFile(tok, fresh);
     return fresh.access_token;
   } catch (e) {
     if (!e?.invalidGrant) throw e;
@@ -141,7 +153,7 @@ async function ensureAccessToken() {
     const tok2 = await readTokenFile();
     if (Number(tok2.expires_at) - Math.floor(Date.now() / 1000) > REFRESH_SKEW_S) return tok2.access_token;
     const fresh2 = await refreshOnce(clientId, tok2.refresh_token);
-    await writeTokenFile(fresh2);
+    await writeTokenFile(tok2, fresh2);
     return fresh2.access_token;
   }
 }

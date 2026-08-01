@@ -90,3 +90,46 @@ test("resolveClientId extracts the id from the CLI binary and caches it by mtime
     }
   }
 });
+
+test("writeTokenFile keeps fields the refresh response doesn't cover and leaves no temp file", async () => {
+  const { mkdtemp, readdir, readFile, writeFile } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { writeTokenFile } = await import("../kimi-quota.js");
+
+  const dir = await mkdtemp(join(tmpdir(), "omt-kimi-creds-"));
+  const creds = join(dir, "kimi-code.json");
+  // The CLI owns this file; anything it stores beyond the token keys must survive our write.
+  const previous = {
+    access_token: "old-access",
+    refresh_token: "old-refresh",
+    expires_at: 1_700_000_000,
+    account_id: "acct_42",
+    endpoint: "https://api.kimi.com",
+  };
+  await writeFile(creds, JSON.stringify(previous, null, 2) + "\n");
+
+  const savedEnv = process.env.OMT_KIMI_CREDENTIALS;
+  try {
+    process.env.OMT_KIMI_CREDENTIALS = creds;
+    await writeTokenFile(previous, {
+      access_token: "new-access",
+      refresh_token: "new-refresh",
+      expires_at: 1_800_000_000,
+      scope: "",
+      token_type: "Bearer",
+      expires_in: 900,
+    });
+
+    const after = JSON.parse(await readFile(creds, "utf8"));
+    assert.equal(after.access_token, "new-access");
+    assert.equal(after.refresh_token, "new-refresh");
+    assert.equal(after.expires_at, 1_800_000_000);
+    assert.equal(after.account_id, "acct_42"); // preserved
+    assert.equal(after.endpoint, "https://api.kimi.com"); // preserved
+    assert.deepEqual(await readdir(dir), ["kimi-code.json"]); // atomic swap, temp cleaned up
+  } finally {
+    if (savedEnv === undefined) delete process.env.OMT_KIMI_CREDENTIALS;
+    else process.env.OMT_KIMI_CREDENTIALS = savedEnv;
+  }
+});
