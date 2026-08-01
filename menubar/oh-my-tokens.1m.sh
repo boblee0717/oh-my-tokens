@@ -12,6 +12,23 @@
 
 set -euo pipefail
 
+# Formatter prefs (menu-bar title style) + this script's own path, exported so
+# format.mjs can read the pref and point the dropdown's style actions back at us.
+OMT_PREFS="${OMT_MENUBAR_PREFS:-$HOME/.oh-my-tokens/menubar-prefs.json}"
+export OMT_MENUBAR_PREFS="$OMT_PREFS"
+export OMT_PLUGIN_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+
+# SwiftBar menu action: `bash=<this script> param1=--set-style param2=<style>`.
+if [ "${1:-}" = "--set-style" ]; then
+  case "${2:-}" in
+    png | classic)
+      mkdir -p "$(dirname "$OMT_PREFS")"
+      printf '{"titleStyle":"%s"}\n' "$2" >"$OMT_PREFS"
+      ;;
+  esac
+  exit 0
+fi
+
 # Resolve a node binary even under SwiftBar's minimal PATH.
 find_node() {
   for c in node /opt/homebrew/bin/node /usr/local/bin/node /usr/bin/node; do
@@ -32,7 +49,8 @@ FORMAT="${OMT_FORMAT:-$HOME/.oh-my-tokens/menubar/format.mjs}"
 [ -f "${FORMAT}" ] || FORMAT="${HERE}/format.mjs"  # dev fallback: alongside the script
 # Installed host CLI (install.sh copies the runtime here).
 REPORT_CLI="${OMT_HOST_CLI:-$HOME/.oh-my-tokens/native-host/host/index.js}"
-# Standalone quota refresh (fetches Cursor plan usage via the saved cookie — no browser).
+# Standalone quota refresh (fetches Cursor plan usage via the saved cookie and Kimi Code
+# plan usage via the local CLI's managed OAuth token — no browser).
 REFRESH_CLI="$(dirname "${REPORT_CLI}")/refresh-quota.js"
 
 if [ -z "${NODE}" ]; then

@@ -10,8 +10,10 @@ window (see "Plan usage %" below).
 - **One command, agent-installable** — `install-menubar.sh` does everything.
 - **Free, no Apple account** — SwiftBar is free and already notarized; our part is just
   a script it runs. Installed locally → not quarantined → no Gatekeeper prompt, no $99.
-- **Reuses the data layer** — pipes `host/index.js` JSON through `format.mjs`. No new
+- **Reuses the data layer** — renders `host/index.js` JSON through `format.mjs`. No new
   data logic, no extra source of truth.
+- **Instant redraws** — the plugin renders a cached report and rebuilds it in the
+  background, so the slow host scan never blocks the menu (see below).
 
 ## Install
 ```bash
@@ -20,13 +22,37 @@ window (see "Plan usage %" below).
 A 🎫 item appears in the menu bar; the dropdown breaks usage down by provider/model and
 shows 7d / 30d rollups. Refreshes every minute.
 
+## Menu bar title: quota buckets
+When plan-usage quota data exists (see below), the title shows **grouped quota
+buckets**: one bucket per quota window, buckets of a provider adjacent (shortest
+window first — 5h before weekly), filled with the **remaining** capacity. Each bucket
+carries its remaining % as a top-right corner badge and the provider name as a
+bottom-right corner badge (CODEX / KIMI / …), both overlapping the bucket with a
+knockout halo so they stay readable at any fill level. With no quota data, the title
+falls back to today's estimated cost + total tokens (🎫).
+
+Two styles, switchable from the dropdown (**Menu bar style**, persisted in
+`~/.oh-my-tokens/menubar-prefs.json`, overridable with `OMT_TITLE_STYLE`):
+- **Quota buckets · image** (default) — `format.mjs` draws a tiny monochrome PNG
+  itself (pure Node: zlib + a hand-rolled PNG chunk writer + a 3x5 bitmap font for the
+  badges, no deps) and passes it as SwiftBar `templateImage`, so macOS re-tints it for
+  light/dark menu bars.
+- **Cost · tokens** — the classic 🎫 headline even when quota data exists.
+
 ## Files
-- `oh-my-tokens.1m.sh` — the SwiftBar plugin (1-minute refresh). Locates `node`, runs the
-  installed host CLI, pipes to the formatter.
+- `oh-my-tokens.1m.sh` — the SwiftBar plugin (1-minute refresh). Locates `node`, renders
+  the **cached** report (`~/.oh-my-tokens/report-cache.json`) through the formatter, and
+  kicks a background cache rebuild when it's stale. Menu actions: `--set-style <style>`
+  (writes prefs; SwiftBar's `refresh=true` redraws instantly from cache) and `--refresh`
+  (forces a background data refresh). With no cache yet (first install) it does one
+  synchronous host run to seed it.
+- `refresh-report.sh` — background refresher: runs `refresh-quota.js` + `host/index.js`
+  detached and atomically replaces the report cache (tmp + `mv`), guarded by a `mkdir`
+  lock so overlapping runs can't stack.
 - `format.mjs` — renders the host's JSON report into SwiftBar's text format. Lives in a
   **support dir** (`~/.oh-my-tokens/menubar/`), NOT the plugin folder — SwiftBar runs every
-  file in its plugin folder as a plugin, so the helper must live elsewhere.
-- `install-menubar.sh` — installs SwiftBar if missing, places the plugin + formatter,
+  file in its plugin folder as a plugin, so the helpers must live elsewhere.
+- `install-menubar.sh` — installs SwiftBar if missing, places the plugin + helpers,
   points SwiftBar at the plugin folder (only if you don't already use one), launches it.
 
 ## Plan usage % (quota)
@@ -36,11 +62,16 @@ emits its 5h and weekly quota directly. That snapshot is log-driven, not a live 
 Browser analytics sit behind Cloudflare, so the extension can also cache Codex analytics (and
 Claude.ai usage) in `~/.oh-my-tokens/quota-cache.json`:
 
-- **Cursor — standalone, no browser needed.** Each refresh the plugin runs
+- **Cursor — standalone, no browser needed.** Each background refresh runs
   `refresh-quota.js`, which reads your saved `cursor.com` cookie from the browser cookie
   store (macOS Keychain, one-time "Always Allow"), calls `cursor.com/api/usage-summary`
   itself, and merges the result. So Cursor stays current even with Chrome closed.
   (`chrome-cookies.js` does the read/decrypt; `cursor-quota.js` does the fetch/map.)
+- **Kimi Code — standalone via the local CLI's token.** `refresh-quota.js` also calls
+  `api.kimi.com/coding/v1/usages` (the same endpoint the CLI's `/usage` panel uses) with
+  the managed OAuth token from `~/.kimi-code/credentials/kimi-code.json`, refreshing it
+  (and writing the rotated tokens back) when it expires. Gives `weekly` + `5h` buckets.
+  (`kimi-quota.js`; see AGENTS.md for the credentials-read exception scope.)
 - **Claude.ai — via the extension.** Cloudflare bot protection rejects a standalone fetch,
   so the Chrome extension pushes browser-derived quota to the host (`{type:"saveQuota"}`)
   when it runs.
