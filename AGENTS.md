@@ -2,73 +2,29 @@
 
 Key decisions and incident records shared across agent sessions.
 
-## 2026-08-01: Menu bar render/data separation (instant style switch)
 
-- **Incident**: the SwiftBar plugin ran `host/index.js` synchronously on every render.
-  The Codex parser full-scans `~/.codex/sessions/**/*.jsonl` (7+ GB here) each run, so
-  one render took ~40s of CPU every minute → sustained 1+ core load, thermal pressure,
-  and style switches that only appeared after the next 40s pipeline finished.
-- **Fix** (`menubar/`): the plugin script now renders from a cached report
-  (`~/.oh-my-tokens/report-cache.json`, `OMT_REPORT_CACHE` override) and never waits on
-  the host. New `menubar/refresh-report.sh` rebuilds that cache DETACHED (spawned via
-  `nohup bash … &` with fully redirected fds — SwiftBar must never inherit the pipe),
-  guarded by a `mkdir` lock dir (`$CACHE.lock`, 10-min stale recovery), atomic replace
-  via tmp+`mv`. It also runs `refresh-quota.js` (moved out of the render path).
-- Plugin behavior: `--set-style` unchanged (writes prefs, exits; the menu items already
-  carry `refresh=true`, so the re-render reads the new prefs from cache instantly).
-  New `--refresh` arg forces a background refresh; the formatter's footer Refresh item
-  invokes it (`bash=$OMT_PLUGIN_SCRIPT param1=--refresh refresh=true`, falls back to
-  plain `refresh=true` without `OMT_PLUGIN_SCRIPT`). Otherwise a background refresh is
-  kicked when the cache is missing or older than 1 min (`find -mmin +1`); with no cache
-  at all (first install) the plugin does ONE synchronous host run, seeding the cache
-  via `tee`. Measured: render 40s → ~0.1s; style switch effectively instant.
-- `menubar/install-menubar.sh` copies `refresh-report.sh` into the support dir (+x).
-- Note: `format.test.mjs` has locale-sensitive date assertions that fail under a zh-CN
-  system locale — run with `LANG=en_US.UTF-8` (pre-existing, unrelated to this change).
+## 2026-08-01: Menu-bar quota-bucket title + Kimi standalone quota (PR #1)
 
-## 2026-07-31: Kimi Code quota buckets (managed OAuth exception)
-
-- **Kimi Code — standalone quota** (`host/kimi-quota.js`): the CLI's `/usage` panel calls
-  `GET https://api.kimi.com/coding/v1/usages` with the managed OAuth Bearer token — same
-  call, reverse-engineered from the CLI binary (`~/.kimi-code/bin/kimi`, embedded JS in
-  `packages/oauth/src/managed-usage.ts`). Real payload is proto-JSON: numeric strings,
-  `usage` = weekly summary (`limit`+`remaining`, `resetTime`, NO `used` → used = limit −
-  remaining), `limits[]` = `{detail, window:{duration, timeUnit: "TIME_UNIT_*"}}` with the
-  5-hour window expressed as **300 minutes** (fold whole hours in labels). Records map to
-  `quota_percent` ("weekly" + "5h"), `planType` from `user.membership.level`
-  (LEVEL_ADVANCED → "Kimi Advanced"). `boosterWallet` ignored for now.
-- **Bob approved reading the CLI's managed token** (option C, 2026-07-31) — an exception to
-  the 2026-07-20 "never read ~/.kimi-code/credentials/" rule. Boundaries: read ONLY
-  `credentials/kimi-code.json`; never log/persist the token elsewhere; on refresh (tokens
-  live 900s) write the rotated `access_token`+`refresh_token` BACK to the same file
-  (mode 600), exactly like the CLI; on `invalid_grant` re-read once and retry (the CLI may
-  have rotated first). Refresh = `POST auth.kimi.com/api/oauth/token` form
-  `{client_id: 17e5f671-…-5516cb48c098 (public device client), grant_type: refresh_token}`.
-- Wired into `host/refresh-quota.js` (90s throttle, provider "kimi") → quota cache → menu-bar
-  buckets. Verified live: 3 buckets (Codex Weekly + Kimi weekly + Kimi 5h).
-
-## 2026-07-31: Menu-bar quota buckets
-
-- The SwiftBar title shows **grouped quota buckets**: one bucket per quota window,
-  buckets of a provider adjacent (shortest window first — 5h before weekly). Each
-  bucket carries its remaining % as a top-right corner badge and the provider short
-  name as a bottom-right corner badge; both stick 3px onto the bucket with the same
-  1px knockout halo (readable over full buckets). 3x5 bitmap font baked into the PNG;
-  cells widen to fit the wider badge so neighbours never collide. Built from the same
-  merged quota records as the PLAN USAGE dropdown — merge moved BEFORE title rendering
-  in `menubar/format.mjs`. No quota data → classic 🎫 cost/tokens headline.
-- Two title styles (`png` default / `classic`; the short-lived `unicode` text style was
-  removed 2026-08-01 — unknown style values fall back to `png`), persisted in
-  `~/.oh-my-tokens/menubar-prefs.json` (`OMT_MENUBAR_PREFS` / `OMT_TITLE_STYLE`
-  override). The dropdown's **Menu bar style** actions re-invoke the plugin script as
-  `bash=<self> param1=--set-style param2=<style>`; `oh-my-tokens.1m.sh` handles that
-  arg before anything else and exports `OMT_PLUGIN_SCRIPT` so the formatter can build
-  the action lines.
-- The `png` style draws its own image in pure Node (`deflateSync` + a hand-rolled
-  CRC32/PNG-chunk writer — NO deps, the formatter must stay dependency-free) and emits
-  it as SwiftBar `templateImage` (alpha-only ink, so macOS re-tints light/dark).
-- Tests (`menubar/format.test.mjs`) must isolate `OMT_MENUBAR_PREFS` from the dev
-  machine's real prefs file.
+- **Bucket title** (`menubar/format.mjs`): opt-in style, default stays the classic 🎫
+  headline. One bucket per quota window, grouped by provider (shortest window first),
+  filled with REMAINING %; remaining-% badge top-right + provider badge bottom-right,
+  both overlapping the corner with a 1px knockout halo (readable over full buckets).
+  Pure-Node PNG (zlib + hand-rolled chunks + 3x5 bitmap font — NO deps) emitted as
+  SwiftBar `templateImage`. Style persisted in `~/.oh-my-tokens/menubar-prefs.json`
+  via the plugin's `--set-style` action; `OMT_TITLE_STYLE` overrides; tests must
+  isolate `OMT_MENUBAR_PREFS`. Quota merge moved BEFORE title rendering.
+- **Kimi standalone quota** (`host/kimi-quota.js`, wired into `refresh-quota.js` at a
+  90s throttle): `GET api.kimi.com/coding/v1/usages` — the endpoint behind the CLI's
+  `/usage` panel, reverse-engineered from the CLI binary. Payload is proto-JSON:
+  numeric strings, weekly summary has `limit`+`remaining` (used = limit − remaining),
+  the 5h window arrives as 300 minutes. Maps to quota_percent "weekly" + "5h",
+  planType from `user.membership.level`.
+- **Bob approved reading `~/.kimi-code/credentials/kimi-code.json`** (option C) — a
+  narrow exception to the 2026-07-20 "never read credentials/" rule: this ONE file
+  only; the token is never logged or persisted elsewhere; on refresh (tokens live
+  900s) the rotated tokens are written BACK like the CLI (mode 600); `invalid_grant`
+  → re-read once and retry. Refresh = `POST auth.kimi.com/api/oauth/token` with the
+  public device client_id `17e5f671-d194-4dfb-9706-5516cb48c098`.
 
 ## 2026-07-20: Kimi Code integration
 
