@@ -23,8 +23,12 @@ Key decisions and incident records shared across agent sessions.
   narrow exception to the 2026-07-20 "never read credentials/" rule: this ONE file
   only; the token is never logged or persisted elsewhere; on refresh (tokens live
   900s) the rotated tokens are written BACK like the CLI (mode 600); `invalid_grant`
-  → re-read once and retry. Refresh = `POST auth.kimi.com/api/oauth/token` with the
-  public device client_id `17e5f671-d194-4dfb-9706-5516cb48c098`.
+  → re-read once and retry. Refresh = `POST auth.kimi.com/api/oauth/token`; the
+  server REQUIRES `client_id` (400 invalid_request without it) — the public
+  device-flow id is NOT hardcoded in our repo: `resolveClientId()` extracts it from
+  the local CLI binary at runtime (exactly one `clientId: "<uuid>"` in the embedded
+  JS), cached by binary mtime in `~/.oh-my-tokens/kimi-client-id.json`
+  (`OMT_KIMI_CLIENT_ID` overrides).
 
 ## 2026-07-20: Kimi Code integration
 
