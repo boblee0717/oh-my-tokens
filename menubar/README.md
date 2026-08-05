@@ -23,12 +23,12 @@ A 🎫 item appears in the menu bar; the dropdown breaks usage down by provider/
 shows 7d / 30d rollups. Refreshes every minute.
 
 ## Menu bar title: quota buckets
-When plan-usage quota data exists (see below), the title shows **grouped quota
-buckets**: one bucket per quota window, buckets of a provider adjacent (shortest
-window first — 5h before weekly), filled with the **remaining** capacity. Each bucket
-carries its remaining % as a top-right corner badge and the provider name as a
-bottom-right corner badge (CODEX / KIMI / …), both overlapping the bucket with a
-knockout halo so they stay readable at any fill level. With no quota data, the title
+When plan-usage quota data exists (see below), the title groups quota windows by
+provider. Each window keeps a separate small bucket (shortest window first — 5h before
+weekly), while the provider name is centred once below the group (CODEX / KIMI / …).
+Every bucket shows its own remaining percentage; full window names stay in the dropdown
+instead of adding letter codes to the compact title. Badges use a knockout halo so they
+stay readable at any fill level. With no quota data, the title
 falls back to today's estimated cost + total tokens (🎫).
 
 Two styles, switchable from the dropdown (**Menu bar style**, persisted in

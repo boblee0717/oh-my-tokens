@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import { inflateSync } from "node:zlib";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const formatScript = join(here, "format.mjs");
@@ -34,6 +35,21 @@ function runFormat(report, env) {
     });
     child.stdin.end(JSON.stringify(report));
   });
+}
+
+function pngAlphaAt(png, x, y) {
+  const width = png.readUInt32BE(16);
+  const idat = [];
+  for (let offset = 8; offset < png.length; ) {
+    const length = png.readUInt32BE(offset);
+    const type = png.toString("ascii", offset + 4, offset + 8);
+    if (type === "IDAT") idat.push(png.subarray(offset + 8, offset + 8 + length));
+    offset += length + 12;
+  }
+  const raw = inflateSync(Buffer.concat(idat));
+  const stride = width * 4 + 1;
+  assert.equal(raw[y * stride], 0, "test PNG should use filter type 0");
+  return raw[y * stride + 1 + x * 4 + 3];
 }
 
 test("headline displays today's total tokens from all models beside today's estimated cost", async () => {
@@ -439,7 +455,7 @@ test("renders and samples TraeX provider records", async () => {
   assert.equal(sample.today.totalTokens, 2300);
 });
 
-test("png style renders a buckets template image with badge text baked in", async () => {
+test("png style groups one provider's quota windows under one shared label", async () => {
   const dir = await mkdtemp(join(tmpdir(), "omt-format-buckets-png-"));
   const quotaCache = join(dir, "quota-cache.json");
   const usageCache = join(dir, "usage-cache.json");
@@ -450,19 +466,19 @@ test("png style renders a buckets template image with badge text baked in", asyn
       savedAt: "2026-07-31T08:00:00.000Z",
       records: [
         {
+          id: "claude-code::quota:weekly:quota_percent",
+          provider: "claude-code",
+          metricType: "quota_percent",
+          usedPercent: 50,
+          windowLabel: "Weekly",
+          updatedAt: "2026-07-31T08:00:00.000Z",
+        },
+        {
           id: "claude-code::quota:5h:quota_percent",
           provider: "claude-code",
           metricType: "quota_percent",
           usedPercent: 14,
           windowLabel: "5h",
-          updatedAt: "2026-07-31T08:00:00.000Z",
-        },
-        {
-          id: "claude-code::quota:weekly:quota_percent",
-          provider: "claude-code",
-          metricType: "quota_percent",
-          usedPercent: 50,
-          windowLabel: "weekly",
           updatedAt: "2026-07-31T08:00:00.000Z",
         },
       ],
@@ -479,13 +495,17 @@ test("png style renders a buckets template image with badge text baked in", asyn
   assert.ok(m, `unexpected title: ${title.slice(0, 80)}`);
   const png = Buffer.from(m[1], "base64");
   assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
-  // IHDR: one provider group, 2 buckets; each cell = 6 + max(pct, "CLAUDE"=23) + 3
-  // = 32 wide, trailing cell gap trimmed => 61 total, 20 tall.
-  assert.equal(png.readUInt32BE(16), 61);
+  // Two independent 9px buckets share one centred CLAUDE label. Repeating the
+  // provider badge made this 61px wide; the grouped treatment is 37px.
+  assert.equal(png.readUInt32BE(16), 37);
   assert.equal(png.readUInt32BE(20), 20);
+  assert.equal(pngAlphaAt(png, 2, 7), 255, "5h bucket should sort first and be filled at this height");
+  assert.equal(pngAlphaAt(png, 10, 7), 0, "quota windows should remain separate mini buckets");
+  assert.equal(pngAlphaAt(png, 20, 7), 255, "second bucket should keep its own outline");
+  assert.equal(pngAlphaAt(png, 22, 7), 0, "Weekly bucket should sort second and still be empty at this height");
 });
 
-test("buckets image lays out one group per provider", async () => {
+test("buckets image keeps different providers in separate buckets", async () => {
   const dir = await mkdtemp(join(tmpdir(), "omt-format-buckets-order-"));
   const quotaCache = join(dir, "quota-cache.json");
   const usageCache = join(dir, "usage-cache.json");
@@ -523,11 +543,38 @@ test("buckets image lays out one group per provider", async () => {
   const m = out.split("\n")[0].match(/^\s*\| templateImage=(.+)$/);
   assert.ok(m, "title should be a template image");
   const png = Buffer.from(m[1], "base64");
-  // Two single-bucket groups (claude + cursor): cell 6 + max("60%", "CLAUDE"=23) + 3
-  // = 32 each; the first group's trailing cell gap widens to the 7px group gap (net
-  // +4), the last cell gap is trimmed => 32 + 4 + 32 - 3 = 65.
-  assert.equal(png.readUInt32BE(16), 65);
+  // Two 23px provider groups (claude + cursor) separated by the 7px group gap.
+  assert.equal(png.readUInt32BE(16), 53);
   assert.equal(png.readUInt32BE(20), 20);
+});
+
+test("eight-bucket cap keeps a window from later providers", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "omt-format-buckets-fair-cap-"));
+  const quotaCache = join(dir, "quota-cache.json");
+  const usageCache = join(dir, "usage-cache.json");
+  await writeFile(usageCache, JSON.stringify({ records: [] }));
+  const providers = ["claude-code", "codex", "traex", "cursor", "kimi"];
+  await writeFile(
+    quotaCache,
+    JSON.stringify({
+      savedAt: "2026-07-31T08:00:00.000Z",
+      records: providers.flatMap((provider) => [
+        { id: `${provider}:5h`, provider, metricType: "quota_percent", usedPercent: 20, windowLabel: "5h" },
+        { id: `${provider}:weekly`, provider, metricType: "quota_percent", usedPercent: 40, windowLabel: "Weekly" },
+      ]),
+    }),
+  );
+
+  const out = await runFormat(
+    { generatedAt: "2026-07-31T08:01:00.000Z", errors: [], records: [] },
+    { OMT_QUOTA_CACHE: quotaCache, OMT_USAGE_CACHE: usageCache, OMT_TITLE_STYLE: "png" },
+  );
+
+  const m = out.split("\n")[0].match(/^\s*\| templateImage=(.+)$/);
+  assert.ok(m, "title should be a template image");
+  const png = Buffer.from(m[1], "base64");
+  // Claude/Codex/TraeX get two buckets; Cursor and later Kimi still get one.
+  assert.equal(png.readUInt32BE(16), 179);
 });
 
 test("classic style keeps the cost headline even with quota data", async () => {
@@ -651,7 +698,7 @@ test("a provider missing from PROVIDER_ORDER still gets a bucket", async () => {
   const m = out.split("\n")[0].match(/^\s*\| templateImage=(.+)$/);
   assert.ok(m, "unknown provider should still render a bucket, not fall back to the headline");
   const png = Buffer.from(m[1], "base64");
-  // One bucket: cell = 6 + max("60%"=11, "GEMINI"=23) + 3 = 32, trailing gap trimmed.
-  assert.equal(png.readUInt32BE(16), 29);
+  // One provider group: the 23px GEMINI label is wider than its 17px window cell.
+  assert.equal(png.readUInt32BE(16), 23);
   assert.equal(png.readUInt32BE(20), 20);
 });

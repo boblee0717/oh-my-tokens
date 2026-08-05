@@ -45,9 +45,9 @@ function bar(n) {
 }
 
 // ----- menu-bar title: classic 🎫 cost/tokens headline by default; an opt-in
-// "buckets" style draws one bucket per quota window filled with the REMAINING
-// capacity (100 - usedPercent). Switchable from the dropdown (persisted in
-// menubar-prefs.json) or OMT_TITLE_STYLE.
+// "buckets" style draws one independent bucket per quota window, visually grouped
+// by provider and filled with the REMAINING capacity (100 - usedPercent). Switchable
+// from the dropdown (persisted in menubar-prefs.json) or OMT_TITLE_STYLE.
 
 
 // Minimal PNG encoder (8-bit RGBA, filter "none") — no deps, so the formatter can
@@ -146,37 +146,41 @@ function providerShort(p) {
   return [...(PROVIDER_SHORT[p] || p).toUpperCase()].filter((ch) => GLYPHS[ch]).join("");
 }
 
-// Each bucket is a cell: bucket on the left, remaining-% badge on its top-right
-// corner and provider short name on its bottom-right corner — both stick out 3px onto
-// the bucket and use the same 1px knockout halo, so they stay readable over a full
-// bucket. Cells widen to fit the wider of the two badges, so neighbours never
-// collide. Buckets of one provider stay adjacent (shortest window first).
+function normalizedWindowLabel(label) {
+  return String(label || "").trim().toLowerCase();
+}
+
+// A provider group contains one small bucket per quota window (shortest window first).
+// Every bucket keeps its own remaining-% badge, while the provider short name is
+// centred once below the group.
 function bucketsPng(buckets) {
-  const BUCKET_W = 9, BUCKET_H = 14, BUCKET_Y = 3;
-  const GAP = 3, GROUP_GAP = 7, NAME_Y = 15, HEIGHT = 20;
+  const BUCKET_W = 9, BUCKET_H = 11, BUCKET_Y = 3;
+  const WINDOW_GAP = 3, GROUP_GAP = 7, NAME_Y = 15, HEIGHT = 20;
   const textW = (t) => (t.length ? t.length * 4 - 1 : 0);
   // ---- layout ----
-  const groups = [];
-  for (const b of buckets) {
-    const g = groups[groups.length - 1];
-    if (g && g.provider === b.provider) g.items.push(b);
-    else groups.push({ provider: b.provider, items: [b] });
-  }
   const laid = [];
   const badges = []; // { text, left, top }
   let x = 0;
-  for (const g of groups) {
-    for (const b of g.items) {
-      const pct = `${Math.round(b.remaining)}%`;
-      const name = providerShort(b.provider);
-      laid.push({ b, x });
-      badges.push({ text: pct, left: x + BUCKET_W - 3, top: 0 });
-      if (name) badges.push({ text: name, left: x + BUCKET_W - 3, top: NAME_Y });
-      x += BUCKET_W - 3 + Math.max(textW(pct), textW(name)) + GAP;
-    }
-    x += GROUP_GAP - GAP;
+  for (const b of buckets) {
+    const name = providerShort(b.provider);
+    const percentages = b.windows.map((w) => `${Math.round(w.remaining)}%`);
+    const windowsW = percentages.reduce(
+      (width, pct) => width + BUCKET_W - 3 + textW(pct) + WINDOW_GAP,
+      0,
+    ) - WINDOW_GAP;
+    const groupW = Math.max(windowsW, textW(name));
+    let bucketX = x + Math.floor((groupW - windowsW) / 2);
+    let chamberX = bucketX;
+    b.windows.forEach((window, i) => {
+      const pct = percentages[i];
+      laid.push({ window, x: chamberX });
+      badges.push({ text: pct, left: chamberX + BUCKET_W - 3, top: 0 });
+      chamberX += BUCKET_W - 3 + textW(pct) + WINDOW_GAP;
+    });
+    if (name) badges.push({ text: name, left: x + Math.floor((groupW - textW(name)) / 2), top: NAME_Y });
+    x += groupW + GROUP_GAP;
   }
-  const width = x - (GROUP_GAP - GAP) - GAP;
+  const width = x - GROUP_GAP;
   const px = new Uint8Array(width * HEIGHT * 4);
   const ink = (xx, yy) => {
     if (xx >= 0 && xx < width && yy >= 0 && yy < HEIGHT) px[(yy * width + xx) * 4 + 3] = 255;
@@ -195,7 +199,7 @@ function bucketsPng(buckets) {
     });
   };
   // ---- draw ----
-  for (const { b, x: x0 } of laid) {
+  for (const { window, x: x0 } of laid) {
     for (let xx = 0; xx < BUCKET_W; xx++) {
       ink(x0 + xx, BUCKET_Y);
       ink(x0 + xx, BUCKET_Y + BUCKET_H - 1);
@@ -205,7 +209,7 @@ function bucketsPng(buckets) {
       ink(x0 + BUCKET_W - 1, BUCKET_Y + yy);
     }
     const innerH = BUCKET_H - 2;
-    const fill = Math.round((Math.max(0, Math.min(100, Number(b.remaining) || 0)) / 100) * innerH);
+    const fill = Math.round((Math.max(0, Math.min(100, Number(window.remaining) || 0)) / 100) * innerH);
     for (let f = 0; f < fill; f++) {
       const yy = BUCKET_Y + BUCKET_H - 2 - f;
       for (let xx = 1; xx < BUCKET_W - 1; xx++) ink(x0 + xx, yy);
@@ -232,13 +236,17 @@ function titleStyle() {
 // Approximate window duration in minutes, for ordering a provider's buckets
 // short-window-first (5h before weekly). Unknown labels sort last (stable).
 function windowRank(label) {
-  if (label === "weekly") return 10080;
-  const m = /^(\d+)([mhdw])$/.exec(label || "");
+  const s = normalizedWindowLabel(label);
+  if (s.startsWith("weekly")) return 10080;
+  if (s.startsWith("plan")) return 20000;
+  if (s.startsWith("api")) return 20001;
+  const m = /^(\d+)\s*([mhdw])/.exec(s);
   if (!m) return Number.POSITIVE_INFINITY;
   return Number(m[1]) * { m: 1, h: 60, d: 1440, w: 10080 }[m[2]];
 }
-// One bucket per quota record (provider order, shortest window first within a
-// provider), capped so a pathological cache can't flood the menu bar.
+// One visual group per provider (provider order, shortest window first within each
+// group), with at most eight buckets total. Every visible provider gets one bucket
+// before second windows are added, so early providers cannot crowd later ones out.
 function quotaBuckets(quotaRecords) {
   const byProv = {};
   for (const q of quotaRecords) (byProv[q.provider] ??= []).push(q);
@@ -246,26 +254,39 @@ function quotaBuckets(quotaRecords) {
   // provider written by a newer extension than this formatter still gets a bucket
   // instead of disappearing from the title.
   const order = [...PROVIDER_ORDER, ...Object.keys(byProv).filter((p) => !PROVIDER_ORDER.includes(p))];
-  const buckets = [];
+  const groups = [];
   for (const p of order) {
-    const list = [];
+    const windows = [];
     for (const q of byProv[p] || []) {
       const used = Number(q.usedPercent);
       if (!Number.isFinite(used)) continue;
-      list.push({
-        provider: p,
+      windows.push({
         label: q.windowLabel || q.model || "usage",
         remaining: 100 - Math.max(0, Math.min(100, used)),
       });
     }
-    list.sort((a, b) => windowRank(a.label) - windowRank(b.label));
-    buckets.push(...list);
+    windows.sort((a, b) => windowRank(a.label) - windowRank(b.label));
+    if (windows.length) groups.push({ provider: p, windows });
   }
-  return buckets.slice(0, 8);
+  const visible = groups.slice(0, 8);
+  const buckets = visible.map((g) => ({ provider: g.provider, windows: [g.windows[0]] }));
+  let windowCount = buckets.length;
+  for (let windowIndex = 1; windowCount < 8; windowIndex++) {
+    let added = false;
+    for (let i = 0; i < visible.length && windowCount < 8; i++) {
+      const window = visible[i].windows[windowIndex];
+      if (!window) continue;
+      buckets[i].windows.push(window);
+      windowCount++;
+      added = true;
+    }
+    if (!added) break;
+  }
+  return buckets;
 }
 function renderTitleLine(headline, buckets, style) {
   if (!buckets.length || style === "classic") return `🎫 ${headline} | sfimage=ticket`;
-  // Percentages live in the image as per-bucket badges, so the title is image-only.
+  // Remaining percentages live in the image, so the title is image-only.
   const b64 = bucketsPng(buckets).toString("base64");
   return ` | templateImage=${b64}`;
 }

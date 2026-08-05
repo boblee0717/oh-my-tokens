@@ -6,9 +6,10 @@ Key decisions and incident records shared across agent sessions.
 ## 2026-08-01: Menu-bar quota-bucket title + Kimi standalone quota (PR #3)
 
 - **Bucket title** (`menubar/format.mjs`): opt-in style, default stays the classic 🎫
-  headline. One bucket per quota window, grouped by provider (shortest window first),
-  filled with REMAINING %; remaining-% badge top-right + provider badge bottom-right,
-  both overlapping the corner with a 1px knockout halo (readable over full buckets).
+  headline. One independent mini-bucket per quota window, visually grouped by provider
+  (shortest window first); each bucket keeps its remaining-% badge and the provider badge
+  is centred once below the group. A 1px knockout halo keeps badges readable over full
+  buckets.
   Pure-Node PNG (zlib + hand-rolled chunks + 3x5 bitmap font — NO deps) emitted as
   SwiftBar `templateImage`. Style persisted in `~/.oh-my-tokens/menubar-prefs.json`
   via the plugin's `--set-style` action; `OMT_TITLE_STYLE` overrides; tests must
