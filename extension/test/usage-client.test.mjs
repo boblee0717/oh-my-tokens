@@ -211,3 +211,40 @@ test("applyUpdate sends a native applyUpdate request", async () => {
     globalThis.chrome = originalChrome;
   }
 });
+
+test("a healthy full report taking longer than ten seconds stays native", async () => {
+  const originalChrome = globalThis.chrome;
+  const originalFetch = globalThis.fetch;
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  const timers = new Set();
+  try {
+    // Advance the two one-shot timers without Node's version-specific MockTimers API.
+    globalThis.setTimeout = (callback, delay) => {
+      const timer = { callback, delay };
+      timers.add(timer);
+      return timer;
+    };
+    globalThis.clearTimeout = (timer) => { timers.delete(timer); };
+    globalThis.chrome = { runtime: {
+      lastError: null,
+      sendNativeMessage(_host, _request, callback) {
+        setTimeout(() => callback({ ...sampleReport, hostVersion: "live-host" }), 12745);
+      },
+    } };
+    globalThis.fetch = async () => { assert.fail("A healthy slow report must not load sample data"); };
+    const pending = getUsageReport();
+    for (const timer of [...timers].sort((a, b) => a.delay - b.delay)) {
+      if (timer.delay <= 12745 && timers.delete(timer)) timer.callback();
+    }
+    const result = await pending;
+    assert.equal(result._source, "native");
+    assert.equal(result.hostVersion, "live-host");
+    assert.equal(timers.size, 0);
+  } finally {
+    globalThis.chrome = originalChrome;
+    globalThis.fetch = originalFetch;
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
+});
