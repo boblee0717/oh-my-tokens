@@ -211,3 +211,26 @@ test("applyUpdate sends a native applyUpdate request", async () => {
     globalThis.chrome = originalChrome;
   }
 });
+
+test("a healthy full report taking longer than ten seconds stays native", async (t) => {
+  const originalChrome = globalThis.chrome;
+  const originalFetch = globalThis.fetch;
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    globalThis.chrome = { runtime: {
+      lastError: null,
+      sendNativeMessage(_host, _request, callback) {
+        setTimeout(() => callback({ ...sampleReport, hostVersion: "live-host" }), 12745);
+      },
+    } };
+    globalThis.fetch = async () => { assert.fail("A healthy slow report must not load sample data"); };
+    const pending = getUsageReport();
+    t.mock.timers.tick(12745);
+    const result = await pending;
+    assert.equal(result._source, "native");
+    assert.equal(result.hostVersion, "live-host");
+  } finally {
+    globalThis.chrome = originalChrome;
+    globalThis.fetch = originalFetch;
+  }
+});

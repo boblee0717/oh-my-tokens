@@ -3,6 +3,9 @@
 
 export const DEFAULT_HOST_NAME = "com.ohmytokens.host";
 export const DEFAULT_NATIVE_TIMEOUT_MS = 10000;
+// A full report scans local session history; it can legitimately exceed the
+// shorter deadline used by lightweight native commands such as checkUpdate.
+export const DEFAULT_USAGE_TIMEOUT_MS = 30000;
 
 function nativeErrorMessage(error) {
   if (!error) return "unknown native host error";
@@ -131,7 +134,7 @@ async function viaSample() {
 export async function getUsageReport({
   hostName = DEFAULT_HOST_NAME,
   deepseekApiKey,
-  nativeTimeoutMs = DEFAULT_NATIVE_TIMEOUT_MS,
+  nativeTimeoutMs = DEFAULT_USAGE_TIMEOUT_MS,
 } = {}) {
   let nativeError = "native messaging API unavailable in this context";
   if (

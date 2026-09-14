@@ -67,6 +67,7 @@ async function getJson(path, fetchImpl) {
   const res = await fetchImpl(`${BASE}${path}`, {
     credentials: "include",
     headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(6000),
   });
   if (!res.ok) {
     const err = new Error(`HTTP ${res.status}`);
@@ -76,34 +77,45 @@ async function getJson(path, fetchImpl) {
   return res.json();
 }
 
-function firstOrgUuid(account) {
+function orgUuids(account) {
+  const uuids = [];
   const m = account?.memberships;
   if (Array.isArray(m)) {
     for (const x of m) {
       const uuid = x?.organization?.uuid;
-      if (uuid) return uuid;
+      if (typeof uuid === "string" && uuid) uuids.push(uuid);
     }
   }
-  return account?.organization?.uuid ?? null;
+  const legacy = account?.organization?.uuid;
+  if (typeof legacy === "string" && legacy) uuids.push(legacy);
+  return [...new Set(uuids)];
 }
 
 export const CLAUDE_LOGIN_URL = "https://claude.ai/login";
 
 // Returns { status, records, loginUrl }:
 //   "ok"          → records is the quota_percent list
-//   "needs_login" → user isn't signed in to claude.ai (401/403 or no org); UI prompts login
+//   "needs_login" → account authentication failed (or no org); UI prompts login
 //   "error"       → endpoint/shape changed or network failure; UI stays quiet
 // `fetchImpl` is injectable so the auth/login-state branches are unit-testable.
 export async function fetchClaudeQuota(fetchImpl = typeof fetch === "function" ? fetch : null) {
   if (!fetchImpl) return { status: "error", records: [] };
   try {
-    const orgUuid = firstOrgUuid(await getJson("/api/account", fetchImpl));
-    if (!orgUuid) return { status: "needs_login", records: [], loginUrl: CLAUDE_LOGIN_URL };
-    const usage = await getJson(
-      `/api/organizations/${encodeURIComponent(orgUuid)}/usage`,
-      fetchImpl,
-    );
-    return { status: "ok", records: mapUsage(usage) };
+    const organizations = orgUuids(await getJson("/api/account", fetchImpl));
+    if (!organizations.length) return { status: "needs_login", records: [], loginUrl: CLAUDE_LOGIN_URL };
+    // Membership order is not a plan selection. An account can list an organization
+    // whose usage endpoint rejects it before the organization carrying its Claude plan.
+    for (const orgUuid of organizations) {
+      try {
+        const usage = await getJson(`/api/organizations/${encodeURIComponent(orgUuid)}/usage`, fetchImpl);
+        const records = mapUsage(usage);
+        if (records.length) return { status: "ok", records };
+      } catch (e) {
+        if (e?.status === 403) continue; // Organization access failed, not account login.
+        throw e;
+      }
+    }
+    return { status: "error", records: [] };
   } catch (e) {
     if (e && (e.status === 401 || e.status === 403)) {
       return { status: "needs_login", records: [], loginUrl: CLAUDE_LOGIN_URL };
