@@ -8,7 +8,8 @@ import { copyFileSync, rmSync } from "node:fs";
 // AES-128-CBC with a key derived from the "<App> Safe Storage" Keychain password).
 // Used so the host can reuse the user's existing site login (e.g. cursor.com) to fetch
 // login-gated usage WITHOUT the browser being open. Cookie values stay local and are only
-// sent to the site they belong to. Best-effort: any failure returns {} rather than throwing.
+// sent to the site they belong to. Access failures throw so callers can retain cached
+// usage; an unreadable cookie store does not mean the user has signed out.
 
 const BROWSERS = {
   chrome: {
@@ -68,14 +69,17 @@ export function getCookies(hostLike, browser = "chrome") {
       const hex = r.slice(i + 1);
       try {
         const v = decryptValue(hex, key);
+        if (!v && name === "WorkosCursorSessionToken") throw new Error("Unsupported Cursor cookie encryption");
         if (v) out[name] = v;
       } catch {
+        if (name === "WorkosCursorSessionToken") throw new Error("Cannot decrypt Cursor session");
         // skip individual cookie that fails to decrypt
       }
     }
     return out;
   } catch {
-    return {};
+    // Do not expose subprocess output (which may contain secret material).
+    throw new Error("Cannot read browser cookies");
   } finally {
     try {
       rmSync(tmp, { force: true });

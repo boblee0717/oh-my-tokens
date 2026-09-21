@@ -116,12 +116,12 @@ export function mapUsageEvents(json, now = new Date(), partial = false) {
 }
 
 export async function fetchCursorUsageRecords(now = new Date()) {
-  const cookies = getCookies("%cursor.com%");
-  if (!cookies.WorkosCursorSessionToken) return { status: "needs_login", records: [] };
-  const cookie = cookieHeader(cookies);
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 12000);
   try {
+    const cookies = getCookies("%cursor.com%");
+    if (!cookies.WorkosCursorSessionToken) return { status: "needs_login", records: [] };
+    const cookie = cookieHeader(cookies);
     const endDate = now.getTime();
     const startDate = endDate - 30 * DAY_MS;
     let all = [];

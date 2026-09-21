@@ -99,6 +99,13 @@ all providers/models**, and the dropdown shows each provider/model flat (one gla
 All costs are **estimates, not billing** (flagged in the dropdown).
 
 ## Scope / limits
+To hide a provider and skip its standalone quota refresh, add `"hiddenProviders": ["kimi"]`
+to `~/.oh-my-tokens/menubar-prefs.json` (keep any existing `titleStyle`). This also excludes
+its cached quota, usage, errors, and tokens from the menu-bar totals.
+
+If macOS denies SwiftBar access to Chrome's cookie store, existing Cursor data is retained.
+The Chrome extension also refreshes Cursor quota every 10 minutes while Chrome is running.
+
 - Codex/TraeX/Cursor costs use assumed/derived rates — directional, not invoices.
 - Quota % freshness: Cursor is live (standalone); TraeX is local when `rate_limits` exist;
   Codex is as fresh as its newest local canonical `token_count` snapshot unless newer browser

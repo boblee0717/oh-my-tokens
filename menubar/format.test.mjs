@@ -4,11 +4,38 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawn } from "node:child_process";
+import { spawn, execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { inflateSync } from "node:zlib";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const formatScript = join(here, "format.mjs");
+
+test("hidden providers stay hidden across cache, report, errors, and style changes", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "omt-hidden-"));
+  const prefs = join(dir, "prefs.json");
+  const quotaCache = join(dir, "quota.json");
+  const usageCache = join(dir, "usage.json");
+  await writeFile(prefs, JSON.stringify({ hiddenProviders: ["kimi"], titleStyle: "png" }));
+  await writeFile(quotaCache, JSON.stringify({ records: [
+    { provider: "kimi", metricType: "quota_percent", windowLabel: "weekly", usedPercent: 0 },
+    { provider: "cursor", metricType: "quota_percent", windowLabel: "Plan usage", usedPercent: 0.5 },
+  ] }));
+  await writeFile(usageCache, JSON.stringify({ records: [] }));
+  await promisify(execFile)("bash", [join(here, "oh-my-tokens.1m.sh"), "--set-style", "classic"], {
+    env: { ...process.env, OMT_MENUBAR_PREFS: prefs },
+  });
+  assert.deepEqual(JSON.parse(await readFile(prefs, "utf8")), { hiddenProviders: ["kimi"], titleStyle: "classic" });
+  const out = await runFormat({ errors: [{ provider: "kimi", message: "Kimi failed" }], records: [
+    { provider: "kimi", metricType: "measured_tokens", window: "today", inputTokens: 9999999, model: "hidden-model" },
+    { provider: "kimi", metricType: "quota_percent", windowLabel: "5h", usedPercent: 50 },
+    { provider: "codex", metricType: "estimated_cost", window: "today", costUSD: 2 },
+  ] }, { OMT_MENUBAR_PREFS: prefs, OMT_QUOTA_CACHE: quotaCache, OMT_USAGE_CACHE: usageCache });
+  assert.match(out, /Cursor/);
+  assert.match(out, /Plan usage\s+0\.5%/);
+  assert.doesNotMatch(out, /kimi|hidden-model|10M tok/i);
+  assert.match(out.split("\n")[0], /\$2/);
+});
 
 function runFormat(report, env) {
   return new Promise((resolve, reject) => {
