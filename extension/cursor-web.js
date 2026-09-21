@@ -204,6 +204,7 @@ async function getJson(path, fetchImpl) {
   const res = await fetchImpl(`${BASE}${path}`, {
     credentials: "include",
     headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) {
     const err = new Error(`HTTP ${res.status}`);
@@ -249,9 +250,8 @@ async function fetchEventRecords(fetchImpl, now) {
   return mapUsageEvents({ usageEventsDisplay: all }, now, partial);
 }
 
-// Returns { status, records, loginUrl } for Cursor. Combines quota (usage-summary) and
-// per-model tokens (usage events). `fetchImpl` injectable for unit testing.
-export async function fetchCursorUsage(fetchImpl = typeof fetch === "function" ? fetch : null, now = new Date()) {
+// Lightweight quota-only fetch for background refresh, without paginating usage events.
+export async function fetchCursorQuota(fetchImpl = typeof fetch === "function" ? fetch : null) {
   if (!fetchImpl) return { status: "error", records: [] };
   let summary;
   try {
@@ -266,7 +266,14 @@ export async function fetchCursorUsage(fetchImpl = typeof fetch === "function" ?
     return { status: "error", records: [] };
   }
 
-  const records = mapUsageSummary(summary);
+  return { status: "ok", records: mapUsageSummary(summary) };
+}
+
+// Combines quota and per-model tokens for the popup.
+export async function fetchCursorUsage(fetchImpl = typeof fetch === "function" ? fetch : null, now = new Date()) {
+  const result = await fetchCursorQuota(fetchImpl);
+  if (result.status !== "ok") return result;
+  const records = result.records;
   // Per-model tokens are a best-effort add-on; never let them fail the (working) quota result.
   try {
     records.push(...(await fetchEventRecords(fetchImpl, now)));

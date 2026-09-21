@@ -2,7 +2,20 @@ process.env.TZ = "UTC";
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mapUsageSummary, mapUsageEvents, fetchCursorUsage } from "../cursor-web.js";
+import { mapUsageSummary, mapUsageEvents, fetchCursorUsage, fetchCursorQuota } from "../cursor-web.js";
+
+test("background quota refresh only requests the summary using the browser session", async () => {
+  const calls = [];
+  const result = await fetchCursorQuota(async (url, options) => {
+    calls.push(url);
+    assert.equal(options.credentials, "include");
+    assert.ok(options.signal instanceof AbortSignal);
+    return res(200, { totalPercentUsed: 0.5 });
+  });
+  assert.equal(result.status, "ok");
+  assert.equal(result.records[0].usedPercent, 0.5);
+  assert.deepEqual(calls, ["https://cursor.com/api/usage-summary"]);
+});
 
 function res(status, body) {
   return { ok: status >= 200 && status < 300, status, json: async () => body };

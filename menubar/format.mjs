@@ -222,6 +222,14 @@ function bucketsPng(buckets) {
 function menubarPrefsPath() {
   return process.env.OMT_MENUBAR_PREFS || join(homedir(), ".oh-my-tokens", "menubar-prefs.json");
 }
+function hiddenProviders() {
+  try {
+    const hidden = JSON.parse(readFileSync(menubarPrefsPath(), "utf8"))?.hiddenProviders;
+    return new Set(Array.isArray(hidden) ? hidden : []);
+  } catch {
+    return new Set();
+  }
+}
 function titleStyle() {
   let s = process.env.OMT_TITLE_STYLE;
   if (!s) {
@@ -505,20 +513,22 @@ function updateFooterSuffix(update) {
   }
 
   let recs = Array.isArray(report.records) ? report.records : [];
-  const errs = Array.isArray(report.errors) ? report.errors : [];
+  const hidden = hiddenProviders();
+  const errs = (Array.isArray(report.errors) ? report.errors : []).filter((e) => !hidden.has(e.provider));
 
   // Merge standalone Cursor usage (real tokens + estimated cost the host fetched from
   // cursor.com), replacing the local request-count-only records so Cursor shows tokens +
   // cost and contributes to the headline total.
   const cursorUsage = readUsageCache().filter((r) => r.provider === "cursor");
   if (cursorUsage.length) recs = recs.filter((r) => r.provider !== "cursor").concat(cursorUsage);
+  recs = recs.filter((r) => !hidden.has(r.provider));
 
   // ----- menu-bar title: one "bucket" per quota window showing REMAINING capacity.
   // Quota % is merged before the title so the title can use it; the dropdown reuses
   // the same merged records below. With no quota data (or the "classic" style), the
   // title falls back to today's estimated cost + total tokens.
   const quota = readQuotaCache();
-  const quotaRecords = mergeQuotaRecords(quota, recs);
+  const quotaRecords = mergeQuotaRecords(quota, recs).filter((r) => !hidden.has(r.provider));
   const buckets = quotaBuckets(quotaRecords);
   const style = titleStyle();
   const todayCost = recs

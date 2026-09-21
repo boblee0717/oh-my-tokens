@@ -84,11 +84,11 @@ export function mapUsageSummary(json) {
 
 // Returns { status: "ok"|"needs_login"|"error", records }.
 export async function fetchCursorQuota() {
-  const cookies = getCookies("%cursor.com%");
-  if (!cookies.WorkosCursorSessionToken) return { status: "needs_login", records: [] };
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 8000);
   try {
+    const cookies = getCookies("%cursor.com%");
+    if (!cookies.WorkosCursorSessionToken) return { status: "needs_login", records: [] };
     const res = await fetch(URL, {
       headers: { Cookie: cookieHeader(cookies), Accept: "application/json" },
       signal: ctrl.signal,

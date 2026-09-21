@@ -18,17 +18,6 @@ OMT_PREFS="${OMT_MENUBAR_PREFS:-$HOME/.oh-my-tokens/menubar-prefs.json}"
 export OMT_MENUBAR_PREFS="$OMT_PREFS"
 export OMT_PLUGIN_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 
-# SwiftBar menu action: `bash=<this script> param1=--set-style param2=<style>`.
-if [ "${1:-}" = "--set-style" ]; then
-  case "${2:-}" in
-    png | classic)
-      mkdir -p "$(dirname "$OMT_PREFS")"
-      printf '{"titleStyle":"%s"}\n' "$2" >"$OMT_PREFS"
-      ;;
-  esac
-  exit 0
-fi
-
 # Resolve a node binary even under SwiftBar's minimal PATH.
 find_node() {
   for c in node /opt/homebrew/bin/node /usr/local/bin/node /usr/bin/node; do
@@ -42,6 +31,24 @@ find_node() {
 }
 
 NODE="$(find_node || true)"
+# Preserve provider preferences when changing the title style.
+if [ "${1:-}" = "--set-style" ]; then
+  case "${2:-}" in
+    png | classic)
+      "${NODE}" --input-type=module -e '
+        import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+        import { dirname } from "node:path";
+        const path = process.env.OMT_MENUBAR_PREFS;
+        let prefs = {};
+        try { prefs = JSON.parse(readFileSync(path, "utf8")); } catch {}
+        mkdirSync(dirname(path), { recursive: true });
+        writeFileSync(path, JSON.stringify({ ...prefs, titleStyle: process.argv[1] }) + "\n");
+      ' "$2"
+      ;;
+  esac
+  exit 0
+fi
+
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # format.mjs lives in a support dir (NOT the SwiftBar plugin folder — SwiftBar
 # would otherwise try to run it as its own plugin). Override with OMT_FORMAT.
