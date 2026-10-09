@@ -1,11 +1,12 @@
 // Standalone quota refresh, run by the menu-bar plugin each cycle. Fetches login-gated
-// plan usage % that the host CAN reach without the browser (Cursor via the saved
-// cursor.com cookie; Kimi Code via the local CLI's managed OAuth token) and merges it
+// plan usage % without the browser (Codex via its authenticated app-server, Cursor
+// via the saved cookie, Kimi Code via the local CLI's managed OAuth token) and merges it
 // into the quota cache the menu bar reads.
 // Best-effort and self-throttling — never throws, never blocks the menu bar for long.
 import { fetchCursorQuota } from "./cursor-quota.js";
 import { fetchCursorUsageRecords } from "./cursor-usage.js";
 import { fetchKimiQuota } from "./kimi-quota.js";
+import { fetchCodexQuota, CODEX_QUOTA_SOURCE } from "./codex-quota.js";
 import { mergeQuotaCache, readQuotaCache } from "./quota-cache.js";
 import { writeUsageCache, readUsageCache } from "./usage-cache.js";
 import { readFile } from "node:fs/promises";
@@ -25,6 +26,15 @@ function newest(records, provider) {
   try {
     const prefs = JSON.parse(await readFile(process.env.OMT_MENUBAR_PREFS || join(homedir(), ".oh-my-tokens", "menubar-prefs.json"), "utf8"));
     if (Array.isArray(prefs.hiddenProviders)) hidden = prefs.hiddenProviders;
+  } catch {}
+  // Use the last active read for throttling: new log snapshots must not suppress polling.
+  try {
+    const q = await readQuotaCache();
+    const active = q.records.filter((r) => r.source === CODEX_QUOTA_SOURCE);
+    if (!hidden.includes("codex") && Date.now() - newest(active, "codex") >= QUOTA_THROTTLE_MS) {
+      const r = await fetchCodexQuota();
+      if (r.status === "ok") await mergeQuotaCache(r.records, ["codex"]);
+    }
   } catch {}
   // Cursor plan usage % (light) → quota cache.
   try {

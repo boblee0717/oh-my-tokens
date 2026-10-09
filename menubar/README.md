@@ -58,7 +58,12 @@ Two styles, switchable from the dropdown (**Menu bar style**, persisted in
 ## Plan usage % (quota)
 Cursor and Claude.ai plan usage are login-gated. Codex is different: when local
 `token_count` events contain canonical `limit_id: "codex"` `rate_limits`, the native host
-emits its 5h and weekly quota directly. That snapshot is log-driven, not a live server fetch.
+emits its 5h and weekly quota directly. The menu bar also actively reads the installed
+Codex client's `account/rateLimits/read` via `codex app-server` every ~2 minutes,
+even while no conversation is running. It reuses the client's login without reading
+credentials or starting inference. Reads time out after 8 seconds; failures retain
+the cached quota, and newer local log snapshots remain a fallback. Set `OMT_CODEX_BIN`
+if the CLI is outside PATH and the usual Homebrew locations.
 Browser analytics sit behind Cloudflare, so the extension can also cache Codex analytics (and
 Claude.ai usage) in `~/.oh-my-tokens/quota-cache.json`:
 

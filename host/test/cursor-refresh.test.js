@@ -16,7 +16,7 @@ test("unreadable browser cookies retain cached Cursor quota and usage", async ()
     const usage = { records: [{ provider: "cursor", metricType: "measured_tokens", inputTokens: 123, updatedAt: "2026-01-01T00:00:00Z" }] };
     await writeFile(join(base, "quota-cache.json"), JSON.stringify(quota));
     await writeFile(join(base, "usage-cache.json"), JSON.stringify(usage));
-    await writeFile(join(base, "menubar-prefs.json"), JSON.stringify({ hiddenProviders: ["kimi"] }));
+    await writeFile(join(base, "menubar-prefs.json"), JSON.stringify({ hiddenProviders: ["kimi", "codex"] }));
     await promisify(execFile)(process.execPath, [fileURLToPath(new URL("../refresh-quota.js", import.meta.url))], {
       env: { ...process.env, HOME: home, USERPROFILE: home, OMT_MENUBAR_PREFS: join(base, "menubar-prefs.json") },
     });
