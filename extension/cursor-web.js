@@ -220,6 +220,7 @@ async function postJson(path, body, fetchImpl) {
     credentials: "include",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) {
     const err = new Error(`HTTP ${res.status}`);
@@ -230,13 +231,13 @@ async function postJson(path, body, fetchImpl) {
 }
 
 // Fetch usage events for the last 30d, bounded pagination. Returns { records } or throws.
-async function fetchEventRecords(fetchImpl, now) {
+async function fetchEventRecords(fetchImpl, now, post = postJson) {
   const endDate = now.getTime();
   const startDate = endDate - 30 * DAY_MS;
   let all = [];
   let total = null;
   for (let page = 1; page <= EVENTS_MAX_PAGES; page++) {
-    const json = await postJson(
+    const json = await post(
       "/api/dashboard/get-filtered-usage-events",
       { startDate: String(startDate), endDate: String(endDate), page, pageSize: EVENTS_PAGE_SIZE },
       fetchImpl,
@@ -248,6 +249,60 @@ async function fetchEventRecords(fetchImpl, now) {
   }
   const partial = total != null && all.length < total;
   return mapUsageEvents({ usageEventsDisplay: all }, now, partial);
+}
+
+// Cursor rejects the extension-origin POST with 403. Read from a same-origin
+// Cursor page instead, using Chrome's existing session and permissions.
+function defaultPageDeps() {
+  if (typeof chrome === "undefined" || !chrome.tabs || !chrome.scripting) return null;
+  return {
+    createTab: () => chrome.tabs.create({ url: CURSOR_LOGIN_URL, active: false }),
+    removeTab: (id) => chrome.tabs.remove(id).catch(() => {}),
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    post: async (tabId, body) => {
+      const [injection] = await chrome.scripting.executeScript({
+        target: { tabId },
+        args: [body],
+        func: async (request) => {
+          if (location.origin !== "https://cursor.com") return null;
+          try {
+            const res = await fetch("https://cursor.com/api/dashboard/get-filtered-usage-events", {
+              method: "POST", credentials: "include",
+              headers: { Accept: "application/json", "Content-Type": "application/json" },
+              body: JSON.stringify(request), signal: AbortSignal.timeout(8000),
+            });
+            return { status: res.status, json: res.ok ? await res.json() : null };
+          } catch {
+            return { status: 0, json: null };
+          }
+        },
+      });
+      return injection?.result;
+    },
+  };
+}
+
+async function fetchEventsInPage(now, deps) {
+  let tabId;
+  try {
+    tabId = (await deps.createTab())?.id;
+    if (tabId == null) throw new Error("Cursor page unavailable");
+    return await fetchEventRecords(null, now, async (_path, body) => {
+      // A newly-created tab may still be about:blank or not injectable yet.
+      for (let attempt = 0; attempt < 20; attempt++) {
+        let response;
+        try { response = await deps.post(tabId, body); } catch {}
+        if (response) {
+          if (response.status < 200 || response.status >= 300) throw new Error("Cursor page usage request failed");
+          return response.json;
+        }
+        await deps.sleep(250);
+      }
+      throw new Error("Cursor page unavailable");
+    });
+  } finally {
+    if (tabId != null) await deps.removeTab(tabId);
+  }
 }
 
 // Lightweight quota-only fetch for background refresh, without paginating usage events.
@@ -270,13 +325,21 @@ export async function fetchCursorQuota(fetchImpl = typeof fetch === "function" ?
 }
 
 // Combines quota and per-model tokens for the popup.
-export async function fetchCursorUsage(fetchImpl = typeof fetch === "function" ? fetch : null, now = new Date()) {
+export async function fetchCursorUsage(fetchImpl = typeof fetch === "function" ? fetch : null, now = new Date(), pageDeps = defaultPageDeps()) {
   const result = await fetchCursorQuota(fetchImpl);
   if (result.status !== "ok") return result;
   const records = result.records;
   // Per-model tokens are a best-effort add-on; never let them fail the (working) quota result.
   try {
     records.push(...(await fetchEventRecords(fetchImpl, now)));
-  } catch {}
+  } catch (e) {
+    if (e?.status === 403 && pageDeps) {
+      try {
+        records.push(...(await fetchEventsInPage(now, pageDeps)));
+      } catch {
+        console.warn("oh-my-tokens: Cursor token fetch failed");
+      }
+    }
+  }
   return { status: "ok", records };
 }

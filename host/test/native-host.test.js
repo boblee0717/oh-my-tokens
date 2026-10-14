@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,7 +16,7 @@ function frame(message) {
   return Buffer.concat([header, json]);
 }
 
-async function runNativeHost(message, env = {}, prepareHome) {
+async function runNativeHost(message, env = {}, prepareHome, inspectHome) {
   const home = await mkdtemp(join(tmpdir(), "oh-my-tokens-home-"));
   if (prepareHome) await prepareHome(home);
   const child = spawn(process.execPath, [hostPath], {
@@ -56,6 +56,7 @@ async function runNativeHost(message, env = {}, prepareHome) {
     assert.ok(raw.length >= 4);
     const length = raw.readUInt32LE(0);
     assert.equal(raw.length, 4 + length);
+    if (inspectHome) await inspectHome(home);
     return JSON.parse(raw.subarray(4).toString("utf8"));
   } finally {
     clearTimeout(timeout);
@@ -63,6 +64,33 @@ async function runNativeHost(message, env = {}, prepareHome) {
     await rm(home, { recursive: true, force: true });
   }
 }
+
+test("browser Fable usage reaches the menu cache without access to Chrome cookies", async () => {
+  const usage = { provider: "cursor", model: "claude-fable-5-1-thinking-high", metricType: "measured_tokens",
+    window: "today", inputTokens: 12, outputTokens: 34, cacheTokens: 56, requests: 1, updatedAt: new Date().toISOString() };
+  const response = await runNativeHost({ type: "saveUsage", records: [usage,
+    { provider: "cursor", metricType: "quota_percent" }, { provider: "codex", metricType: "measured_tokens" }] }, {},
+    async (home) => {
+      await mkdir(join(home, ".oh-my-tokens"));
+      await writeFile(join(home, ".oh-my-tokens", "usage-cache.json"), JSON.stringify({ records: [{ ...usage, model: "old" }] }));
+    }, async (home) => {
+      const cache = JSON.parse(await readFile(join(home, ".oh-my-tokens", "usage-cache.json"), "utf8"));
+      assert.deepEqual(cache.records, [usage]);
+      assert.ok(Date.parse(cache.savedAt));
+    });
+  assert.deepEqual(response, { ok: true, saved: 1 });
+});
+
+test("empty browser usage does not wipe the last successful snapshot", async () => {
+  const cache = { records: [{ provider: "cursor", metricType: "measured_tokens", inputTokens: 123 }] };
+  const response = await runNativeHost({ type: "saveUsage", records: [] }, {}, async (home) => {
+    await mkdir(join(home, ".oh-my-tokens"));
+    await writeFile(join(home, ".oh-my-tokens", "usage-cache.json"), JSON.stringify(cache));
+  }, async (home) => {
+    assert.deepEqual(JSON.parse(await readFile(join(home, ".oh-my-tokens", "usage-cache.json"), "utf8")), cache);
+  });
+  assert.deepEqual(response, { ok: true, saved: 0 });
+});
 
 test("native host writes one framed response and exits cleanly", async () => {
   const home = await mkdtemp(join(tmpdir(), "oh-my-tokens-home-"));

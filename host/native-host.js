@@ -1,5 +1,6 @@
 import { buildUsageReport } from "./report.js";
 import { mergeQuotaCache } from "./quota-cache.js";
+import { writeUsageCache } from "./usage-cache.js";
 import { checkUpdate, applyUpdate } from "./update-manager.js";
 
 const HOST_VERSION = "0.0.0-m5";
@@ -59,6 +60,17 @@ function writeMessage(obj) {
 async function main() {
   const req = (await readMessage());
   process.stdin.pause();
+
+  if (req && req.type === "saveUsage") {
+    const pushed = (Array.isArray(req.records) ? req.records : []).filter(
+      (r) => r?.provider === "cursor" && ["measured_tokens", "estimated_cost"].includes(r.metricType),
+    );
+    // An empty/failed browser fetch must not erase the last successful snapshot.
+    if (pushed.length) await writeUsageCache(pushed);
+    await writeMessage({ ok: true, saved: pushed.length });
+    process.exitCode = 0;
+    return;
+  }
 
   // saveQuota: the popup pushes its browser-fetched quota_percent records so the
   // menu-bar plugin can show plan usage. Cache them and ack; don't build a report.
