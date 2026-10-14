@@ -118,6 +118,18 @@ export function saveQuotaToHost(records, { hostName = DEFAULT_HOST_NAME } = {}) 
   }
 }
 
+// Browser-sourced Cursor tokens also feed SwiftBar when macOS denies cookie-file access.
+export async function saveUsageToHost(records, { hostName = DEFAULT_HOST_NAME } = {}) {
+  const usage = (Array.isArray(records) ? records : []).filter(
+    (r) => r?.provider === "cursor" && ["measured_tokens", "estimated_cost"].includes(r.metricType),
+  );
+  if (!usage.length) return;
+  const response = await nativeRequest(hostName, { type: "saveUsage", records: usage });
+  if (response?.ok !== true || response.saved !== usage.length) {
+    throw new Error("native host did not save Cursor usage");
+  }
+}
+
 async function viaSample() {
   const url =
     typeof chrome !== "undefined" && chrome.runtime?.getURL

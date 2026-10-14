@@ -67,11 +67,17 @@ if the CLI is outside PATH and the usual Homebrew locations.
 Browser analytics sit behind Cloudflare, so the extension can also cache Codex analytics (and
 Claude.ai usage) in `~/.oh-my-tokens/quota-cache.json`:
 
-- **Cursor — standalone, no browser needed.** Each background refresh runs
+- **Cursor — standalone, with a browser fallback.** Each background refresh runs
   `refresh-quota.js`, which reads your saved `cursor.com` cookie from the browser cookie
   store (macOS Keychain, one-time "Always Allow"), calls `cursor.com/api/usage-summary`
-  itself, and merges the result. So Cursor stays current even with Chrome closed.
+  itself, and merges the result when macOS permits access to the cookie file.
   (`chrome-cookies.js` does the read/decrypt; `cursor-quota.js` does the fetch/map.)
+  If SwiftBar cannot read that file, Chrome's extension fetches both quota and per-model
+  tokens/cost every 10 minutes using the existing web session. It sends token/cost records
+  (retrying a rejected extension-origin POST from a temporary Cursor dashboard tab)
+  to the native host (`{type:"saveUsage"}`), which writes `~/.oh-my-tokens/usage-cache.json`.
+  Opening or refreshing the extension popup also syncs those records. No extra SwiftBar
+  permissions are needed; this fallback requires Chrome to be running and Cursor signed in.
 - **Kimi Code — standalone via the local CLI's token.** `refresh-quota.js` also calls
   `api.kimi.com/coding/v1/usages` (the same endpoint the CLI's `/usage` panel uses) with
   the managed OAuth token from `~/.kimi-code/credentials/kimi-code.json`, refreshing it

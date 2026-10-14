@@ -162,3 +162,76 @@ test("fetchCursorUsage: summary + events combine into quota + token records", as
   assert.ok(out.records.some((r) => r.metricType === "quota_percent"));
   assert.ok(out.records.some((r) => r.metricType === "measured_tokens" && r.provider === "cursor"));
 });
+
+test("extension-origin 403 retries from a Cursor page and cleans up its tab", async () => {
+  let attempts = 0;
+  let removed;
+  const deps = {
+    createTab: async () => ({ id: 42 }),
+    removeTab: async (id) => { removed = id; },
+    sleep: async () => {},
+    post: async (id, body) => {
+      assert.equal(id, 42);
+      assert.equal(body.page, 1);
+      if (++attempts === 1) return null; // navigation not ready yet
+      return { status: 200, json: { totalUsageEventsCount: 1, usageEventsDisplay: [{
+        timestamp: String(NOW.getTime()), model: "claude-fable-5-1-thinking-high",
+        tokenUsage: { inputTokens: 12, outputTokens: 34, cacheReadTokens: 56 },
+      }] } };
+    },
+  };
+  const result = await fetchCursorUsage(async (url) => url.endsWith("usage-summary")
+    ? res(200, { totalPercentUsed: 4.3 }) : res(403, {}), NOW, deps);
+  const fable = result.records.find(r => r.window === "today" && r.metricType === "measured_tokens");
+  assert.ok(fable, "extension-origin 403 must not discard Fable tokens");
+  assert.equal(fable.model, "claude-fable-5-1-thinking-high");
+  assert.equal(fable.inputTokens + fable.outputTokens + fable.cacheTokens, 102);
+  assert.equal(removed, 42);
+});
+
+test("failed same-origin request retains quota and closes its temporary tab", async () => {
+  let removed;
+  const result = await fetchCursorUsage(async (url) => url.endsWith("usage-summary")
+    ? res(200, { totalPercentUsed: 4.3 }) : res(403, {}), NOW, {
+    createTab: async () => ({ id: 43 }), removeTab: async (id) => { removed = id; },
+    sleep: async () => {}, post: async () => ({ status: 401, json: null }),
+  });
+  assert.equal(result.status, "ok");
+  assert.deepEqual(result.records.map(r => r.metricType), ["quota_percent"]);
+  assert.equal(removed, 43);
+});
+
+test("default browser fallback only posts to Cursor's fixed same-origin endpoint", async () => {
+  const originalChrome = globalThis.chrome;
+  const originalLocation = globalThis.location;
+  const originalFetch = globalThis.fetch;
+  let removed;
+  try {
+    globalThis.location = { origin: "https://cursor.com" };
+    globalThis.fetch = async (url, options) => {
+      assert.equal(url, "https://cursor.com/api/dashboard/get-filtered-usage-events");
+      assert.equal(options.credentials, "include");
+      assert.ok(options.signal instanceof AbortSignal);
+      return res(200, eventsSample);
+    };
+    globalThis.chrome = {
+      tabs: { create: async ({ url, active }) => {
+        assert.equal(url, "https://cursor.com/dashboard");
+        assert.equal(active, false);
+        return { id: 44 };
+      }, remove: async (id) => { removed = id; } },
+      scripting: { executeScript: async ({ target, args, func }) => {
+        assert.equal(target.tabId, 44);
+        return [{ result: await func(...args) }];
+      } },
+    };
+    const result = await fetchCursorUsage(async (url) => url.endsWith("usage-summary")
+      ? res(200, { totalPercentUsed: 4.3 }) : res(403, {}), NOW);
+    assert.ok(result.records.some(r => r.metricType === "measured_tokens"));
+    assert.equal(removed, 44);
+  } finally {
+    globalThis.chrome = originalChrome;
+    globalThis.location = originalLocation;
+    globalThis.fetch = originalFetch;
+  }
+});

@@ -1,4 +1,4 @@
-import { applyUpdate, getUsageReport, DEFAULT_HOST_NAME, saveQuotaToHost } from "./usage-client.js";
+import { applyUpdate, getUsageReport, DEFAULT_HOST_NAME, saveQuotaToHost, saveUsageToHost } from "./usage-client.js";
 import { fetchClaudeQuota } from "./claude-web.js";
 import { fetchDeepSeekUsage } from "./deepseek-usage.js";
 import { fetchCursorUsage } from "./cursor-web.js";
@@ -312,6 +312,11 @@ async function load() {
     const quotaNow = report.records.filter((r) => r.metricType === "quota_percent");
     if (quotaNow.length || Object.keys(loginPrompts).length) {
       saveQuotaToHost(report.records, { hostName: settings.hostName });
+    }
+    try {
+      await saveUsageToHost(report.records, { hostName: settings.hostName });
+    } catch {
+      console.warn("oh-my-tokens: Cursor usage cache sync failed");
     }
   }
 }
