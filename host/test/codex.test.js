@@ -4,6 +4,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { parseCodexUsage } from "../parsers/codex.js";
 
 const baseDir = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "codex");
@@ -15,6 +17,89 @@ function run() {
 function pick(records, model, window) {
   return records.find((r) => r.model === model && r.window === window);
 }
+
+async function writeRollouts(t, files) {
+  const dir = await mkdtemp(join(tmpdir(), "omt-codex-models-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  for (const [file, rows] of Object.entries(files)) {
+    const path = join(dir, file);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, rows.map((row) => JSON.stringify(row)).join("\n") + "\n");
+  }
+  return dir;
+}
+
+function context(timestamp, model, ordinal) {
+  return { timestamp, ordinal, type: "turn_context", payload: { model } };
+}
+
+function usage(timestamp, input, cache, output, reasoning, ordinal) {
+  return { timestamp, ordinal, type: "event_msg", payload: { type: "token_count", info: {
+    total_token_usage: { input_tokens: input, cached_input_tokens: cache,
+      output_tokens: output, reasoning_output_tokens: reasoning, total_tokens: input + output + reasoning },
+  } } };
+}
+
+test("attributes cumulative deltas to the model active at each event across day boundaries", async (t) => {
+  const dir = await writeRollouts(t, { "sessions/switched.jsonl": [
+    context("2026-05-25T23:00:00Z", "gpt-6-astra"),
+    usage("2026-05-25T23:01:00Z", 1000, 400, 100, 20),
+    usage("2026-05-26T09:00:00Z", 1400, 600, 140, 30),
+    context("2026-05-26T09:01:00Z", "gpt-6.1-sol"),
+    usage("2026-05-26T09:02:00Z", 1400, 600, 140, 30), // repeated snapshot after switching
+    usage("2026-05-26T09:03:00Z", 2000, 900, 200, 40),
+    context("2026-05-26T09:04:00Z", "gpt-6-astra"), // no usage for this switch
+  ] });
+  const records = await parseCodexUsage({ baseDir: dir, now: NOW });
+  const tokens = (model, window) => {
+    const r = pick(records, model, window);
+    return [r.inputTokens, r.cacheTokens, r.outputTokens, r.requests];
+  };
+  assert.deepEqual(tokens("gpt-6-astra", "today"), [200, 200, 50, 1]);
+  assert.deepEqual(tokens("gpt-6.1-sol", "today"), [300, 300, 70, 1]);
+  assert.deepEqual(tokens("gpt-6-astra", "7d"), [800, 600, 170, 1]);
+  assert.deepEqual(tokens("gpt-6.1-sol", "7d"), [300, 300, 70, 1]);
+});
+
+test("keeps child identity despite copied parent metadata and dedups archived child rollouts", async (t) => {
+  const child = [
+    { type: "session_meta", ordinal: 0, payload: { id: "child", session_id: "parent", subagent_history_start_ordinal: 4 } },
+    { type: "session_meta", ordinal: 1, payload: { id: "parent" } },
+    context("2026-05-26T09:00:00Z", "gpt-6-astra", 2),
+    usage("2026-05-26T09:00:01Z", 5000, 2000, 500, 100, 4),
+    context("2026-05-26T09:00:02Z", "gpt-6.1-sol", 5),
+    usage("2026-05-26T09:00:03Z", 1000, 400, 100, 20, 6), // child counter starts at zero
+  ];
+  const dir = await writeRollouts(t, {
+    "sessions/parent.jsonl": [
+      { type: "session_meta", payload: { id: "parent" } },
+      context("2026-05-26T09:00:00Z", "gpt-6-astra"),
+      usage("2026-05-26T09:00:01Z", 5000, 2000, 500, 100),
+    ],
+    "sessions/child.jsonl": child,
+    "archived_sessions/child.jsonl": child,
+  });
+  const records = await parseCodexUsage({ baseDir: dir, now: NOW, windows: ["today"] });
+  const parent = pick(records, "gpt-6-astra", "today");
+  const subagent = pick(records, "gpt-6.1-sol", "today");
+  assert.deepEqual([parent.inputTokens, parent.cacheTokens, parent.outputTokens, parent.requests], [3000, 2000, 600, 1]);
+  assert.deepEqual([subagent.inputTokens, subagent.cacheTokens, subagent.outputTokens, subagent.requests], [600, 400, 120, 1]);
+});
+
+test("uses inherited token snapshots only as a baseline when a child continues the counter", async (t) => {
+  const dir = await writeRollouts(t, { "sessions/child.jsonl": [
+    { type: "session_meta", ordinal: 0, payload: { id: "child", subagent_history_start_ordinal: 2 } },
+    context("2026-05-26T09:00:00Z", "gpt-6-astra", 1),
+    usage("2026-05-26T09:00:01Z", 5000, 2000, 500, 100, 2),
+    context("2026-05-26T09:00:02Z", "gpt-6.1-sol", 3),
+    usage("2026-05-26T09:00:03Z", 5000, 2000, 500, 100, 4),
+    usage("2026-05-26T09:00:04Z", 6000, 2400, 600, 120, 5),
+  ] });
+  const records = await parseCodexUsage({ baseDir: dir, now: NOW, windows: ["today"] });
+  assert.equal(pick(records, "gpt-6-astra", "today"), undefined);
+  const r = pick(records, "gpt-6.1-sol", "today");
+  assert.deepEqual([r.inputTokens, r.cacheTokens, r.outputTokens, r.requests], [600, 400, 120, 1]);
+});
 
 test("uses the final (cumulative) total_token_usage per session", async () => {
   const r = pick(await run(), "gpt-5.5", "today");

@@ -131,12 +131,18 @@ local-day assertions are deterministic.
 
 - Scans `sessions/**` and `archived_sessions/**` under `~/.codex`.
 - Each `rollout-*.jsonl` is one session; its `token_count` events carry a **cumulative**
-  `info.total_token_usage`, so we take the entry with the largest `total_tokens` as the
-  session total (it's monotonic). We map `cached_input_tokens` → cache, `input − cached`
-  → input, `output + reasoning` → output.
-- **Dedups by session id** so a session in both `sessions/` and `archived_sessions/` counts once.
+  `info.total_token_usage`. We attribute each increase inside the selected time window to
+  the model in the preceding `turn_context`, so switching models does not relabel earlier
+  usage. We map `cached_input_tokens` → cache, `input − cached` → input, `output + reasoning`
+  → output.
+- **Dedups by the first session metadata id** so a session in both `sessions/` and
+  `archived_sessions/` counts once. Copied parent metadata cannot overwrite a child's id.
+  Inherited token snapshots are only a baseline, not additional child usage; a child can
+  continue that counter or start a new one at zero.
 - Cost is **not** estimated (no authoritative gpt-5.x prices yet); records carry a warning.
-- `requests` counts **sessions**, not turns (flagged in `warnings`).
+- `requests` counts **sessions per model**, not turns (flagged in `warnings`). A session
+  using multiple models is counted once for each model; the provider's summed request
+  count therefore counts session/model pairs.
 
 - **Quota (M7):** Codex `token_count` events carry `rate_limits` (`plan_type` + `used_percent`
   over a 5h "primary" and weekly "secondary" window). We retain every snapshot, then make

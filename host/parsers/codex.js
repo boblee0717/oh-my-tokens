@@ -31,8 +31,9 @@ function sessionIdFromFilename(file) {
 
 function parseSession(file, text) {
   let sessionId = sessionIdFromFilename(file);
+  let hasSessionMeta = false;
+  let inheritedThroughOrdinal = null;
   let model = "unknown";
-  let modelTs = 0;
   const events = [];
   let rateLimits = null;
   let rateLimitsTs = 0;
@@ -49,12 +50,19 @@ function parseSession(file, text) {
     }
     const type = o?.type;
     const payload = o?.payload ?? {};
-    if (type === "session_meta" && payload.id) {
-      sessionId = payload.id;
-    } else if (type === "turn_context" && payload.model) {
+    if (type === "session_meta") {
+      // Forked rollouts can contain a copy of the parent's metadata after their own.
+      if (!hasSessionMeta) {
+        sessionId = payload.id ?? sessionId;
+        inheritedThroughOrdinal = payload.subagent_history_start_ordinal ?? null;
+        hasSessionMeta = true;
+      }
+      continue;
+    }
+    const inherited = typeof inheritedThroughOrdinal === "number" &&
+      typeof o.ordinal === "number" && o.ordinal <= inheritedThroughOrdinal;
+    if (type === "turn_context" && payload.model) {
       model = payload.model;
-      const ts = Date.parse(o.timestamp ?? "");
-      modelTs = Number.isNaN(ts) ? modelTs : ts;
     } else if (type === "event_msg" && payload.type === "token_count") {
       const ts = Date.parse(o.timestamp ?? "");
       const tsMs = Number.isNaN(ts) ? 0 : ts;
@@ -63,12 +71,15 @@ function parseSession(file, text) {
         const cached = num(total.cached_input_tokens);
         events.push({
           ts: tsMs,
+          model,
+          inherited,
           inputTokens: Math.max(0, num(total.input_tokens) - cached),
           cacheTokens: cached,
           outputTokens: num(total.output_tokens) + num(total.reasoning_output_tokens),
           totalTokens: num(total.total_tokens),
         });
       }
+      if (inherited) continue;
       if (payload.rate_limits && tsMs >= rateLimitsTs) {
         rateLimits = payload.rate_limits;
         rateLimitsTs = tsMs;
@@ -81,13 +92,9 @@ function parseSession(file, text) {
 
   if (!events.length) return null;
   events.sort((a, b) => a.ts - b.ts || a.totalTokens - b.totalTokens);
-  const final = events.reduce((best, event) => (event.totalTokens >= best.totalTokens ? event : best), events[0]);
   return {
     sessionId,
-    model,
-    modelTs,
     events,
-    totalTokens: final.totalTokens,
     rateLimits,
     rateLimitsTs,
     rateLimitCandidates,
@@ -108,36 +115,40 @@ function mergeEvents(events) {
 function mergeSession(a, b) {
   const events = mergeEvents([...a.events, ...b.events]);
   const latestRateLimits = b.rateLimitsTs >= a.rateLimitsTs ? b : a;
-  const latestModel = b.modelTs >= a.modelTs ? b : a;
   return {
     sessionId: a.sessionId,
-    model: latestModel.model,
-    modelTs: latestModel.modelTs,
     events,
-    totalTokens: Math.max(a.totalTokens, b.totalTokens),
     rateLimits: latestRateLimits.rateLimits,
     rateLimitsTs: latestRateLimits.rateLimitsTs,
     rateLimitCandidates: [...a.rateLimitCandidates, ...b.rateLimitCandidates],
   };
 }
 
-function sessionDeltaForWindow(session, cutoff, nowMs) {
+function sessionDeltasForWindow(session, cutoff, nowMs) {
   let before = null;
-  let after = null;
+  const byModel = new Map();
   for (const event of session.events) {
     if (event.ts > nowMs) continue;
-    if (event.ts < cutoff) {
-      before = event;
-    } else {
-      after = event;
+    // A child may continue the inherited counter or start its own at zero.
+    if (before?.inherited && !event.inherited && event.totalTokens < before.totalTokens) {
+      before = null;
     }
+    if (before && !event.inherited && event.totalTokens < before.totalTokens) continue;
+    if (!event.inherited && event.ts >= cutoff) {
+      const inputTokens = Math.max(0, event.inputTokens - (before?.inputTokens ?? 0));
+      const cacheTokens = Math.max(0, event.cacheTokens - (before?.cacheTokens ?? 0));
+      const outputTokens = Math.max(0, event.outputTokens - (before?.outputTokens ?? 0));
+      if (inputTokens + cacheTokens + outputTokens > 0) {
+        const delta = byModel.get(event.model) ?? { inputTokens: 0, cacheTokens: 0, outputTokens: 0 };
+        delta.inputTokens += inputTokens;
+        delta.cacheTokens += cacheTokens;
+        delta.outputTokens += outputTokens;
+        byModel.set(event.model, delta);
+      }
+    }
+    before = event;
   }
-  if (!after) return null;
-  const inputTokens = Math.max(0, after.inputTokens - (before?.inputTokens ?? 0));
-  const cacheTokens = Math.max(0, after.cacheTokens - (before?.cacheTokens ?? 0));
-  const outputTokens = Math.max(0, after.outputTokens - (before?.outputTokens ?? 0));
-  if (inputTokens + cacheTokens + outputTokens === 0) return null;
-  return { inputTokens, cacheTokens, outputTokens };
+  return byModel;
 }
 
 function windowLabel(minutes) {
@@ -277,11 +288,11 @@ export async function parseCodexUsage(opts = {}) {
     const nowMs = now.getTime();
     const byModel = new Map();
     for (const s of sessions) {
-      const delta = sessionDeltaForWindow(s, cutoff, nowMs);
-      if (!delta) continue;
-      const arr = byModel.get(s.model) ?? [];
-      arr.push(delta);
-      byModel.set(s.model, arr);
+      for (const [model, delta] of sessionDeltasForWindow(s, cutoff, nowMs)) {
+        const arr = byModel.get(model) ?? [];
+        arr.push(delta);
+        byModel.set(model, arr);
+      }
     }
     for (const [model, group] of byModel) {
       records.push({
@@ -302,7 +313,7 @@ export async function parseCodexUsage(opts = {}) {
         confidence: "high",
         warnings: [
           "cost not estimated for Codex (no authoritative price source for gpt-5.x yet)",
-          "`requests` counts sessions, not individual turns",
+          "`requests` counts sessions per model, not individual turns; a session using multiple models is counted once for each model",
         ],
       });
     }
