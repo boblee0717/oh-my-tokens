@@ -33,13 +33,16 @@ test("background alarm syncs Fable tokens to the host using the browser session"
           totalUsageEventsCount: 1,
           usageEventsDisplay: [{ timestamp: String(Date.now()), model: "claude-fable-5-1-thinking-high",
             tokenUsage: { inputTokens: 12, outputTokens: 34, cacheReadTokens: 56, totalCents: 25 } }],
-        } : { totalPercentUsed: 4.3 },
+        } : { totalPercentUsed: 4.3, individualUsage: { onDemand: { enabled: true, used: 1234, limit: 5000 } } },
       };
     };
     await import("../background.js");
     await listeners.alarm({ name: "omt-quota-refresh" });
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(messages[0].type, "saveQuota");
+    const spend = messages[0].records.find((r) => r.windowLabel === "On-demand");
+    assert.equal(spend.costUSD, 12.34);
+    assert.equal(spend.limitUSD, 50);
     const usage = messages.find((m) => m.type === "saveUsage");
     assert.ok(usage, "alarm must sync tokens, not just quota");
     const today = usage.records.find((r) => r.window === "today" && r.metricType === "measured_tokens");

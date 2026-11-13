@@ -88,16 +88,21 @@ function metric(label, value, cls = "") {
 function quotaRowsHtml(records) {
   return records
     .map((q) => {
+      const hasPercent = q.usedPercent != null;
       const pctNum = Math.max(0, Math.min(100, Number(q.usedPercent) || 0));
       const pctStr = Number.isInteger(pctNum) ? String(pctNum) : pctNum.toFixed(1);
       const cls = pctNum >= 80 ? "high" : pctNum >= 50 ? "warn" : "";
       const reset = formatReset(q.resetsAt);
+      const spend = q.costUSD != null
+        ? `${money(q.costUSD, q.currency)}${q.limitUSD != null ? ` / ${money(q.limitUSD, q.currency)}` : ""}`
+        : "";
+      const value = [spend, hasPercent ? `${pctStr}%` : ""].filter(Boolean).join(" · ");
       return `<div class="quota-row">
         <div class="top">
           <span class="label">${esc(q.windowLabel || "")}</span>
-          <span class="pct">${pctStr}%</span>
+          <span class="pct">${esc(value)}</span>
         </div>
-        <div class="bar ${cls}"><span style="width:${pctNum}%"></span></div>
+        ${hasPercent ? `<div class="bar ${cls}"><span style="width:${pctNum}%"></span></div>` : ""}
         ${reset ? `<div class="reset">${esc(reset)}</div>` : ""}
       </div>`;
     })

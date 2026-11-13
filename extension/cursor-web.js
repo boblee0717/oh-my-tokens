@@ -3,10 +3,9 @@
 // (host_permissions: https://cursor.com/*; fetch with credentials:"include"). We never read
 // or store the WorkOS session cookie — the browser attaches it automatically.
 //
-// Two endpoints (authenticated shapes are reverse-engineered + cross-checked against the
-// Cursor app's proto names, NOT a captured live response — so all field extraction is
-// tolerant of camelCase/snake_case variants and degrades to [] rather than guessing):
-//   GET  /api/usage-summary                     → plan usage % (quota_percent)
+// Two endpoints (usage-summary, including on-demand cents, was verified against the
+// authenticated dashboard; event extraction tolerates camelCase/snake_case variants):
+//   GET  /api/usage-summary                     → plan usage % + on-demand spend (quota_percent)
 //   POST /api/dashboard/get-filtered-usage-events → per-model token/cost (measured_tokens + estimated_cost)
 //
 // Unauthenticated → HTTP 401 + { error: "not_authenticated" } (verified live 2026-05-27).
@@ -104,6 +103,21 @@ export function mapUsageSummary(json) {
     if (used != null && limit && limit > 0) {
       out.push(quotaRecord({ label: "Plan usage", usedPercent: (used / limit) * 100, resetsAt: cycleEnd, planType: plan }));
     }
+  }
+  // Confirmed against the authenticated dashboard: on-demand amounts are cents.
+  const onDemand = json.individualUsage?.onDemand;
+  const usedCents = firstNumber(onDemand, ["used"]);
+  const limitCents = firstNumber(onDemand, ["limit"]);
+  if (usedCents != null && usedCents >= 0 && (onDemand.enabled !== false || usedCents > 0)) {
+    const record = quotaRecord({ label: "On-demand", usedPercent: limitCents > 0 ? usedCents / limitCents * 100 : 0, resetsAt: cycleEnd, planType: plan });
+    out.push({
+      ...record,
+      // No positive cap means there is no meaningful percentage to display.
+      usedPercent: limitCents > 0 ? record.usedPercent : null,
+      costUSD: usedCents / 100,
+      limitUSD: limitCents > 0 ? limitCents / 100 : null,
+      currency: "USD",
+    });
   }
   return out;
 }

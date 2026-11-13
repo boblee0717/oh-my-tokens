@@ -266,6 +266,7 @@ function quotaBuckets(quotaRecords) {
   for (const p of order) {
     const windows = [];
     for (const q of byProv[p] || []) {
+      if (q.usedPercent == null) continue;
       const used = Number(q.usedPercent);
       if (!Number.isFinite(used)) continue;
       windows.push({
@@ -397,7 +398,8 @@ function writeQuotaSamples(report, records, quotaRecords) {
     for (const q of providerQuota) {
       const label = q.windowLabel || "usage";
       quota[label] = {
-        usedPercent: Number(q.usedPercent) || 0,
+        usedPercent: q.usedPercent == null ? null : Number(q.usedPercent) || 0,
+        ...(q.costUSD != null ? { costUSD: q.costUSD, limitUSD: q.limitUSD } : {}),
         resetsAt: q.resetsAt || null,
         source: q.source || null,
         updatedAt: q.updatedAt || null,
@@ -573,11 +575,15 @@ function updateFooterSuffix(update) {
       line(`▸ ${PROVIDER_LABEL[p] || p}${meta ? ` · ${meta}` : ""} |${item({ color: COL.primary, size: 12 })}`);
       const width = Math.max(...recs.map((q) => (q.windowLabel || "usage").length));
       for (const q of recs) {
+        const hasPercent = q.usedPercent != null;
         const n = Number(q.usedPercent) || 0;
         const label = (q.windowLabel || "usage").padEnd(width);
         const reset = formatReset(q.resetsAt);
-        const pct = `${pctStr(n)}%`.padStart(6);
-        line(`${label} ${pct}  ${bar(n)}${reset ? `  ${reset}` : ""} |${item({ color: pctColor(n), size: 12, font: "Menlo" })}`);
+        const spend = q.costUSD != null
+          ? ` $${Number(q.costUSD).toFixed(2)}${q.limitUSD != null ? ` / $${Number(q.limitUSD).toFixed(2)}` : ""}`
+          : "";
+        const pct = hasPercent ? ` ${`${pctStr(n)}%`.padStart(6)}  ${bar(n)}` : "";
+        line(`${label}${spend}${pct}${reset ? `  ${reset}` : ""} |${item({ color: pctColor(n), size: 12, font: "Menlo" })}`);
       }
     }
   }

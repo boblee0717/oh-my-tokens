@@ -79,6 +79,46 @@ function pngAlphaAt(png, x, y) {
   return raw[y * stride + 1 + x * 4 + 3];
 }
 
+test("Cursor on-demand displays billing-cycle spend and cap without changing today's cost", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "omt-on-demand-"));
+  const quotaCache = join(dir, "quota.json");
+  const usageCache = join(dir, "usage.json");
+  await writeFile(quotaCache, JSON.stringify({ records: [{
+    provider: "cursor", metricType: "quota_percent", windowLabel: "On-demand",
+    usedPercent: 24.7, costUSD: 12.34, limitUSD: 50, currency: "USD",
+  }] }));
+  await writeFile(usageCache, JSON.stringify({ records: [] }));
+  const out = await runFormat({ records: [
+    { provider: "cursor", window: "today", metricType: "estimated_cost", costUSD: 0.25 },
+  ] }, { OMT_QUOTA_CACHE: quotaCache, OMT_USAGE_CACHE: usageCache });
+  assert.match(out, /On-demand\s+\$12\.34 \/ \$50\.00\s+24\.7%\s+▰/);
+  assert.match(out.split("\n")[0], /\$0\.25/);
+});
+
+test("uncapped on-demand shows only its amount and creates no quota bucket", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "omt-on-demand-uncapped-"));
+  const quotaCache = join(dir, "quota.json");
+  const usageCache = join(dir, "usage.json");
+  const sampleLog = join(dir, "samples.jsonl");
+  await writeFile(quotaCache, JSON.stringify({ records: [{
+    provider: "cursor", metricType: "quota_percent", windowLabel: "On-demand",
+    usedPercent: null, costUSD: 123.45, limitUSD: null, currency: "USD",
+  }] }));
+  await writeFile(usageCache, JSON.stringify({ records: [] }));
+  const out = await runFormat({ records: [] }, {
+    OMT_QUOTA_CACHE: quotaCache, OMT_USAGE_CACHE: usageCache, OMT_TITLE_STYLE: "png",
+    OMT_DISABLE_QUOTA_SAMPLING: "0", OMT_QUOTA_SAMPLE_LOG: sampleLog,
+  });
+  const row = out.split("\n").find((line) => line.startsWith("On-demand"));
+  assert.match(row, /\$123\.45/);
+  assert.doesNotMatch(row, /%|▰|▱/);
+  assert.doesNotMatch(out.split("\n")[0], /templateImage/);
+  const sample = JSON.parse((await readFile(sampleLog, "utf8")).trim());
+  assert.equal(sample.quota["On-demand"].usedPercent, null);
+  assert.equal(sample.quota["On-demand"].costUSD, 123.45);
+  assert.equal(sample.today.estimatedCostUSD, 0);
+});
+
 test("headline displays today's total tokens from all models beside today's estimated cost", async () => {
   const dir = await mkdtemp(join(tmpdir(), "omt-format-headline-"));
   const quotaCache = join(dir, "quota-cache.json");
