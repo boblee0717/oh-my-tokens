@@ -110,9 +110,11 @@ all providers/models**, and the dropdown shows each provider/model flat (one gla
 All costs are **estimates, not billing** (flagged in the dropdown).
 
 ## Scope / limits
-Open **Show providers** in the menu-bar dropdown and click a provider to hide or restore
-it. A checkmark means it is visible; hidden providers stay in this list even with no usage
-data. Choices are saved in `~/.oh-my-tokens/menubar-prefs.json` alongside the title style.
+In the menu-bar dropdown's **Provider visibility** section, click a provider directly to
+hide or restore it. These actions stay at the top level to avoid submenu issues in older
+SwiftBar versions. A checkmark means it is visible; hidden providers stay in this list
+even with no usage data. Choices are saved in `~/.oh-my-tokens/menubar-prefs.json`
+alongside the title style.
 Hiding a provider excludes its quota, usage, errors, and tokens from the menu-bar totals
 and skips its standalone quota refresh.
 

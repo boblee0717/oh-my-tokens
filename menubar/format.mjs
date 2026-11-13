@@ -639,9 +639,9 @@ function updateFooterSuffix(update) {
   const pluginScript = process.env.OMT_PLUGIN_SCRIPT;
   if (pluginScript) {
     line("---");
-    line(`Show providers |${item({ color: COL.dim, size: 11 })}`);
+    line(`Provider visibility |${item({ color: COL.dim, size: 11 })}`);
     for (const provider of PROVIDER_ORDER) {
-      line(`--${PROVIDER_LABEL[provider]}${hidden.has(provider) ? "" : " ✓"} | bash="${pluginScript}" param1=--toggle-provider param2=${provider} terminal=false refresh=true`);
+      line(`${PROVIDER_LABEL[provider]}${hidden.has(provider) ? "" : " ✓"} | bash="${pluginScript}" param1=--toggle-provider param2=${provider} terminal=false refresh=true`);
     }
     line("---");
     line(`Menu bar style |${item({ color: COL.dim, size: 11 })}`);
