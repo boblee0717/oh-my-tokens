@@ -635,9 +635,16 @@ function updateFooterSuffix(update) {
     if (roll.length) line(`${roll.join("    ")} |${item({ color: COL.dim, size: 11, font: "Menlo" })}`);
   }
 
-  // ----- menu-bar style switcher (writes menubar-prefs.json via the plugin script) -----
+  // ----- menu-bar preferences (written via the plugin script) -----
   const pluginScript = process.env.OMT_PLUGIN_SCRIPT;
   if (pluginScript) {
+    line("---");
+    line(`Provider visibility |${item({ color: COL.dim, size: 11 })}`);
+    for (const provider of PROVIDER_ORDER) {
+      const visible = !hidden.has(provider);
+      const hasData = recs.some((r) => r.provider === provider) || quotaRecords.some((r) => r.provider === provider);
+      line(`${PROVIDER_LABEL[provider]} · ${visible ? "On" : "Off"}${visible && !hasData ? " · No data" : ""} | bash="${pluginScript}" param1=--toggle-provider param2=${provider} terminal=false refresh=true checked=${visible}`);
+    }
     line("---");
     line(`Menu bar style |${item({ color: COL.dim, size: 11 })}`);
     const opt = (name, val, img) =>
@@ -666,7 +673,9 @@ function updateFooterSuffix(update) {
       })
     : "";
   line(`Updated ${gen}${updateFooterSuffix(report.update)} |${item({ color: COL.dim, size: 11 })}`);
-  line("Refresh | refresh=true");
+  line(pluginScript
+    ? `Refresh | bash="${pluginScript}" param1=--refresh terminal=false refresh=true`
+    : "Refresh | refresh=true");
 
   process.stdout.write(out.join("\n") + "\n");
 })();

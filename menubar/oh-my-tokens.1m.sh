@@ -12,8 +12,8 @@
 
 set -euo pipefail
 
-# Formatter prefs (menu-bar title style) + this script's own path, exported so
-# format.mjs can read the pref and point the dropdown's style actions back at us.
+# Formatter prefs + this script's own path, exported so format.mjs can read the
+# preferences and point the dropdown's style/provider actions back at us.
 OMT_PREFS="${OMT_MENUBAR_PREFS:-$HOME/.oh-my-tokens/menubar-prefs.json}"
 export OMT_MENUBAR_PREFS="$OMT_PREFS"
 export OMT_PLUGIN_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
@@ -49,6 +49,27 @@ if [ "${1:-}" = "--set-style" ]; then
   exit 0
 fi
 
+if [ "${1:-}" = "--toggle-provider" ]; then
+  case "${2:-}" in
+    claude-code | codex | traex | cursor | deepseek | kimi) ;;
+    *) echo "Unknown provider: ${2:-}" >&2; exit 1 ;;
+  esac
+  "${NODE}" --input-type=module -e '
+    import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+    import { dirname } from "node:path";
+    const path = process.env.OMT_MENUBAR_PREFS;
+    let prefs = {};
+    try { prefs = JSON.parse(readFileSync(path, "utf8")); } catch {}
+    const hidden = new Set(Array.isArray(prefs.hiddenProviders) ? prefs.hiddenProviders : []);
+    const provider = process.argv[1];
+    if (hidden.has(provider)) hidden.delete(provider);
+    else hidden.add(provider);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, JSON.stringify({ ...prefs, hiddenProviders: [...hidden] }) + "\n");
+  ' "$2"
+  exit 0
+fi
+
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # format.mjs lives in a support dir (NOT the SwiftBar plugin folder — SwiftBar
 # would otherwise try to run it as its own plugin). Override with OMT_FORMAT.
@@ -59,6 +80,7 @@ REPORT_CLI="${OMT_HOST_CLI:-$HOME/.oh-my-tokens/native-host/host/index.js}"
 # Standalone quota refresh (fetches Cursor plan usage via the saved cookie and Kimi Code
 # plan usage via the local CLI's managed OAuth token — no browser).
 REFRESH_CLI="$(dirname "${REPORT_CLI}")/refresh-quota.js"
+REPORT_CACHE="${OMT_REPORT_CACHE:-$HOME/.oh-my-tokens/report-cache.json}"
 
 if [ -z "${NODE}" ]; then
   echo "🎫 ⚠︎"
@@ -67,6 +89,13 @@ if [ -z "${NODE}" ]; then
   echo "Install Node >= 18 and reload | size=11 color=#6b6b6b,#a1a1aa"
   exit 0
 fi
+
+# SwiftBar redraws after a menu action. Reuse the last report so changing a
+# preference does not wait for network requests or another local history scan.
+if [ "${1:-}" != "--refresh" ] && [ "${SWIFTBAR_PLUGIN_REFRESH_REASON:-}" = "MenuAction" ] && [ -s "${REPORT_CACHE}" ]; then
+  exec "${NODE}" "${FORMAT}" < "${REPORT_CACHE}"
+fi
+
 if [ ! -f "${REPORT_CLI}" ]; then
   echo "🎫 ⚠︎"
   echo "---"
@@ -81,4 +110,10 @@ fi
 
 # No appearance detection here: the formatter emits SwiftBar "light,dark" color pairs,
 # which adapt live — a snapshot of AppleInterfaceStyle would go stale between refreshes.
-"${NODE}" "${REPORT_CLI}" 2>/dev/null | "${NODE}" "${FORMAT}"
+mkdir -p "$(dirname "${REPORT_CACHE}")"
+REPORT_TMP="$(mktemp "${REPORT_CACHE}.XXXXXX")"
+trap 'rm -f "${REPORT_TMP}"' EXIT
+"${NODE}" "${REPORT_CLI}" > "${REPORT_TMP}" 2>/dev/null
+mv -f "${REPORT_TMP}" "${REPORT_CACHE}"
+trap - EXIT
+exec "${NODE}" "${FORMAT}" < "${REPORT_CACHE}"
