@@ -12,8 +12,8 @@ window (see "Plan usage %" below).
   a script it runs. Installed locally → not quarantined → no Gatekeeper prompt, no $99.
 - **Reuses the data layer** — renders `host/index.js` JSON through `format.mjs`. No new
   data logic, no extra source of truth.
-- **Instant redraws** — the plugin renders a cached report and rebuilds it in the
-  background, so the slow host scan never blocks the menu (see below).
+- **Fast preference changes** — menu actions render the cached report, so changing
+  provider visibility or title style does not wait for another host scan (see below).
 
 ## Install
 ```bash
@@ -41,14 +41,11 @@ Two styles, switchable from the dropdown (**Menu bar style**, persisted in
 
 ## Files
 - `oh-my-tokens.1m.sh` — the SwiftBar plugin (1-minute refresh). Locates `node`, renders
-  the **cached** report (`~/.oh-my-tokens/report-cache.json`) through the formatter, and
-  kicks a background cache rebuild when it's stale. Menu actions: `--set-style <style>`
-  (writes prefs; SwiftBar's `refresh=true` redraws instantly from cache) and `--refresh`
-  (forces a background data refresh). With no cache yet (first install) it does one
-  synchronous host run to seed it.
-- `refresh-report.sh` — background refresher: runs `refresh-quota.js` + `host/index.js`
-  detached and atomically replaces the report cache (tmp + `mv`), guarded by a `mkdir`
-  lock so overlapping runs can't stack.
+  the report through the formatter, and saves it in `~/.oh-my-tokens/report-cache.json`.
+  Preference actions (`--set-style` and `--toggle-provider`) redraw from that cache
+  without waiting for quota requests or local log scans. Scheduled refreshes and the
+  **Refresh** action collect new data and atomically replace the cache; a failed
+  collection preserves the previous report. The first run collects data to seed it.
 - `format.mjs` — renders the host's JSON report into SwiftBar's text format. Lives in a
   **support dir** (`~/.oh-my-tokens/menubar/`), NOT the plugin folder — SwiftBar runs every
   file in its plugin folder as a plugin, so the helpers must live elsewhere.
@@ -112,7 +109,8 @@ All costs are **estimates, not billing** (flagged in the dropdown).
 ## Scope / limits
 In the menu-bar dropdown's **Provider visibility** section, click a provider directly to
 hide or restore it. These actions stay at the top level to avoid submenu issues in older
-SwiftBar versions. A checkmark means it is visible; hidden providers stay in this list
+SwiftBar versions. Native checkmarks and **On / Off** labels show the current choice,
+which updates immediately after a click. Hidden providers stay in this list
 even with no usage data. Choices are saved in `~/.oh-my-tokens/menubar-prefs.json`
 alongside the title style.
 Hiding a provider excludes its quota, usage, errors, and tokens from the menu-bar totals

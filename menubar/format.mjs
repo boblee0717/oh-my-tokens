@@ -641,7 +641,8 @@ function updateFooterSuffix(update) {
     line("---");
     line(`Provider visibility |${item({ color: COL.dim, size: 11 })}`);
     for (const provider of PROVIDER_ORDER) {
-      line(`${PROVIDER_LABEL[provider]}${hidden.has(provider) ? "" : " ✓"} | bash="${pluginScript}" param1=--toggle-provider param2=${provider} terminal=false refresh=true`);
+      const visible = !hidden.has(provider);
+      line(`${PROVIDER_LABEL[provider]} · ${visible ? "On" : "Off"} | bash="${pluginScript}" param1=--toggle-provider param2=${provider} terminal=false refresh=true checked=${visible}`);
     }
     line("---");
     line(`Menu bar style |${item({ color: COL.dim, size: 11 })}`);
@@ -671,7 +672,9 @@ function updateFooterSuffix(update) {
       })
     : "";
   line(`Updated ${gen}${updateFooterSuffix(report.update)} |${item({ color: COL.dim, size: 11 })}`);
-  line("Refresh | refresh=true");
+  line(pluginScript
+    ? `Refresh | bash="${pluginScript}" param1=--refresh terminal=false refresh=true`
+    : "Refresh | refresh=true");
 
   process.stdout.write(out.join("\n") + "\n");
 })();

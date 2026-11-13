@@ -80,6 +80,7 @@ REPORT_CLI="${OMT_HOST_CLI:-$HOME/.oh-my-tokens/native-host/host/index.js}"
 # Standalone quota refresh (fetches Cursor plan usage via the saved cookie and Kimi Code
 # plan usage via the local CLI's managed OAuth token — no browser).
 REFRESH_CLI="$(dirname "${REPORT_CLI}")/refresh-quota.js"
+REPORT_CACHE="${OMT_REPORT_CACHE:-$HOME/.oh-my-tokens/report-cache.json}"
 
 if [ -z "${NODE}" ]; then
   echo "🎫 ⚠︎"
@@ -88,6 +89,13 @@ if [ -z "${NODE}" ]; then
   echo "Install Node >= 18 and reload | size=11 color=#6b6b6b,#a1a1aa"
   exit 0
 fi
+
+# SwiftBar redraws after a menu action. Reuse the last report so changing a
+# preference does not wait for network requests or another local history scan.
+if [ "${1:-}" != "--refresh" ] && [ "${SWIFTBAR_PLUGIN_REFRESH_REASON:-}" = "MenuAction" ] && [ -s "${REPORT_CACHE}" ]; then
+  exec "${NODE}" "${FORMAT}" < "${REPORT_CACHE}"
+fi
+
 if [ ! -f "${REPORT_CLI}" ]; then
   echo "🎫 ⚠︎"
   echo "---"
@@ -102,4 +110,10 @@ fi
 
 # No appearance detection here: the formatter emits SwiftBar "light,dark" color pairs,
 # which adapt live — a snapshot of AppleInterfaceStyle would go stale between refreshes.
-"${NODE}" "${REPORT_CLI}" 2>/dev/null | "${NODE}" "${FORMAT}"
+mkdir -p "$(dirname "${REPORT_CACHE}")"
+REPORT_TMP="$(mktemp "${REPORT_CACHE}.XXXXXX")"
+trap 'rm -f "${REPORT_TMP}"' EXIT
+"${NODE}" "${REPORT_CLI}" > "${REPORT_TMP}" 2>/dev/null
+mv -f "${REPORT_TMP}" "${REPORT_CACHE}"
+trap - EXIT
+exec "${NODE}" "${FORMAT}" < "${REPORT_CACHE}"

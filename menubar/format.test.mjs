@@ -84,8 +84,8 @@ test("provider menu actions hide and restore a source while preserving other pre
   ] };
   let output = await runFormat(report, env);
   assert.match(output, /Provider visibility \|/);
-  assert.match(output, /^Claude Code ✓ \|/m);
-  assert.match(output, /^Kimi Code \|/m);
+  assert.match(output, /^Claude Code · On \|.*checked=true/m);
+  assert.match(output, /^Kimi Code · Off \|.*checked=false/m);
   const clickClaude = async () => {
     const action = output.split("\n").find((line) => line.includes("param1=--toggle-provider param2=claude-code"));
     const [, script, option, provider] = action.match(/bash="([^"]+)" param1=(--toggle-provider) param2=(claude-code)/);
@@ -94,12 +94,12 @@ test("provider menu actions hide and restore a source while preserving other pre
   };
   await clickClaude();
   assert.deepEqual(JSON.parse(await readFile(prefs, "utf8")), { ...originalPrefs, hiddenProviders: ["kimi", "claude-code"] });
-  assert.match(output, /^Claude Code \|/m);
+  assert.match(output, /^Claude Code · Off \|.*checked=false/m);
   assert.doesNotMatch(output, /claude-only-model/);
   assert.match(output.split("\n")[0], /\$1\.00/);
   await clickClaude();
   assert.deepEqual(JSON.parse(await readFile(prefs, "utf8")), originalPrefs);
-  assert.match(output, /^Claude Code ✓ \|/m);
+  assert.match(output, /^Claude Code · On \|.*checked=true/m);
   assert.match(output, /claude-only-model/);
   assert.match(output.split("\n")[0], /\$4\.00/);
 });
@@ -117,7 +117,7 @@ test("all hidden providers remain available to restore from the menu without usa
   const actions = out.split("\n").filter((line) => line.includes("param1=--toggle-provider"));
   assert.equal(actions.length, 6);
   assert.ok(actions.every((line) => !line.startsWith("--")), "provider actions must be reachable without opening a submenu");
-  assert.ok(actions.every((line) => !line.includes("✓")));
+  assert.ok(actions.every((line) => line.includes("· Off |") && line.includes("checked=false")));
   assert.ok(actions.every((line) => line.includes('bash="/plugins with spaces/oh-my-tokens.1m.sh"') && line.includes("terminal=false refresh=true")));
 });
 
