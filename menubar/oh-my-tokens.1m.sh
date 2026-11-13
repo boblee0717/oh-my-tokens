@@ -12,8 +12,8 @@
 
 set -euo pipefail
 
-# Formatter prefs (menu-bar title style) + this script's own path, exported so
-# format.mjs can read the pref and point the dropdown's style actions back at us.
+# Formatter prefs + this script's own path, exported so format.mjs can read the
+# preferences and point the dropdown's style/provider actions back at us.
 OMT_PREFS="${OMT_MENUBAR_PREFS:-$HOME/.oh-my-tokens/menubar-prefs.json}"
 export OMT_MENUBAR_PREFS="$OMT_PREFS"
 export OMT_PLUGIN_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
@@ -46,6 +46,27 @@ if [ "${1:-}" = "--set-style" ]; then
       ' "$2"
       ;;
   esac
+  exit 0
+fi
+
+if [ "${1:-}" = "--toggle-provider" ]; then
+  case "${2:-}" in
+    claude-code | codex | traex | cursor | deepseek | kimi) ;;
+    *) echo "Unknown provider: ${2:-}" >&2; exit 1 ;;
+  esac
+  "${NODE}" --input-type=module -e '
+    import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+    import { dirname } from "node:path";
+    const path = process.env.OMT_MENUBAR_PREFS;
+    let prefs = {};
+    try { prefs = JSON.parse(readFileSync(path, "utf8")); } catch {}
+    const hidden = new Set(Array.isArray(prefs.hiddenProviders) ? prefs.hiddenProviders : []);
+    const provider = process.argv[1];
+    if (hidden.has(provider)) hidden.delete(provider);
+    else hidden.add(provider);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, JSON.stringify({ ...prefs, hiddenProviders: [...hidden] }) + "\n");
+  ' "$2"
   exit 0
 fi
 

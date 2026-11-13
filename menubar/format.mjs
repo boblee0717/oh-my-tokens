@@ -635,9 +635,14 @@ function updateFooterSuffix(update) {
     if (roll.length) line(`${roll.join("    ")} |${item({ color: COL.dim, size: 11, font: "Menlo" })}`);
   }
 
-  // ----- menu-bar style switcher (writes menubar-prefs.json via the plugin script) -----
+  // ----- menu-bar preferences (written via the plugin script) -----
   const pluginScript = process.env.OMT_PLUGIN_SCRIPT;
   if (pluginScript) {
+    line("---");
+    line(`Show providers |${item({ color: COL.dim, size: 11 })}`);
+    for (const provider of PROVIDER_ORDER) {
+      line(`--${PROVIDER_LABEL[provider]}${hidden.has(provider) ? "" : " ✓"} | bash="${pluginScript}" param1=--toggle-provider param2=${provider} terminal=false refresh=true`);
+    }
     line("---");
     line(`Menu bar style |${item({ color: COL.dim, size: 11 })}`);
     const opt = (name, val, img) =>

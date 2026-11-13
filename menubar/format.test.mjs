@@ -64,6 +64,62 @@ function runFormat(report, env) {
   });
 }
 
+test("provider menu actions hide and restore a source while preserving other preferences", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "omt-provider-menu-"));
+  const prefs = join(dir, "prefs with spaces.json");
+  const quotaCache = join(dir, "quota.json");
+  const usageCache = join(dir, "usage.json");
+  const originalPrefs = { titleStyle: "classic", hiddenProviders: ["kimi"], custom: "keep" };
+  await writeFile(prefs, JSON.stringify(originalPrefs));
+  await writeFile(quotaCache, JSON.stringify({ records: [] }));
+  await writeFile(usageCache, JSON.stringify({ records: [] }));
+  const env = {
+    OMT_MENUBAR_PREFS: prefs, OMT_QUOTA_CACHE: quotaCache, OMT_USAGE_CACHE: usageCache,
+    OMT_PLUGIN_SCRIPT: join(here, "oh-my-tokens.1m.sh"),
+  };
+  const report = { records: [
+    { provider: "claude-code", metricType: "measured_tokens", window: "today", model: "claude-only-model", inputTokens: 1000 },
+    { provider: "claude-code", metricType: "estimated_cost", window: "today", costUSD: 3 },
+    { provider: "cursor", metricType: "estimated_cost", window: "today", costUSD: 1 },
+  ] };
+  let output = await runFormat(report, env);
+  assert.match(output, /Show providers \|/);
+  assert.match(output, /--Claude Code ✓ \|/);
+  assert.match(output, /--Kimi Code \|/);
+  const clickClaude = async () => {
+    const action = output.split("\n").find((line) => line.startsWith("--Claude Code"));
+    const [, script, option, provider] = action.match(/bash="([^"]+)" param1=(--toggle-provider) param2=(claude-code)/);
+    await promisify(execFile)("bash", [script, option, provider], { env: { ...process.env, ...env, OMT_HOST_CLI: "/no/such/host" } });
+    output = await runFormat(report, env);
+  };
+  await clickClaude();
+  assert.deepEqual(JSON.parse(await readFile(prefs, "utf8")), { ...originalPrefs, hiddenProviders: ["kimi", "claude-code"] });
+  assert.match(output, /--Claude Code \|/);
+  assert.doesNotMatch(output, /claude-only-model/);
+  assert.match(output.split("\n")[0], /\$1\.00/);
+  await clickClaude();
+  assert.deepEqual(JSON.parse(await readFile(prefs, "utf8")), originalPrefs);
+  assert.match(output, /--Claude Code ✓ \|/);
+  assert.match(output, /claude-only-model/);
+  assert.match(output.split("\n")[0], /\$4\.00/);
+});
+
+test("all hidden providers remain available to restore from the menu without usage data", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "omt-provider-menu-empty-"));
+  const prefs = join(dir, "prefs.json");
+  const cache = join(dir, "empty.json");
+  await writeFile(prefs, JSON.stringify({ hiddenProviders: ["claude-code", "codex", "traex", "cursor", "deepseek", "kimi"] }));
+  await writeFile(cache, JSON.stringify({ records: [] }));
+  const out = await runFormat({ records: [] }, {
+    OMT_MENUBAR_PREFS: prefs, OMT_QUOTA_CACHE: cache, OMT_USAGE_CACHE: cache,
+    OMT_PLUGIN_SCRIPT: "/plugins with spaces/oh-my-tokens.1m.sh",
+  });
+  const actions = out.split("\n").filter((line) => line.includes("param1=--toggle-provider"));
+  assert.equal(actions.length, 6);
+  assert.ok(actions.every((line) => !line.includes("✓")));
+  assert.ok(actions.every((line) => line.includes('bash="/plugins with spaces/oh-my-tokens.1m.sh"') && line.includes("terminal=false refresh=true")));
+});
+
 function pngAlphaAt(png, x, y) {
   const width = png.readUInt32BE(16);
   const idat = [];
