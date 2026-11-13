@@ -113,6 +113,8 @@ SwiftBar versions. Native checkmarks and **On / Off** labels show the current ch
 which updates immediately after a click. Hidden providers stay in this list
 even with no usage data. Choices are saved in `~/.oh-my-tokens/menubar-prefs.json`
 alongside the title style.
+**On · No data** means display is enabled but no records are currently available.
+For DeepSeek balance, configure its API key using the [setup instructions](../README.md#deepseek-api-key-optional).
 Hiding a provider excludes its quota, usage, errors, and tokens from the menu-bar totals
 and skips its standalone quota refresh.
 

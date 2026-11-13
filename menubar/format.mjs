@@ -642,7 +642,8 @@ function updateFooterSuffix(update) {
     line(`Provider visibility |${item({ color: COL.dim, size: 11 })}`);
     for (const provider of PROVIDER_ORDER) {
       const visible = !hidden.has(provider);
-      line(`${PROVIDER_LABEL[provider]} · ${visible ? "On" : "Off"} | bash="${pluginScript}" param1=--toggle-provider param2=${provider} terminal=false refresh=true checked=${visible}`);
+      const hasData = recs.some((r) => r.provider === provider) || quotaRecords.some((r) => r.provider === provider);
+      line(`${PROVIDER_LABEL[provider]} · ${visible ? "On" : "Off"}${visible && !hasData ? " · No data" : ""} | bash="${pluginScript}" param1=--toggle-provider param2=${provider} terminal=false refresh=true checked=${visible}`);
     }
     line("---");
     line(`Menu bar style |${item({ color: COL.dim, size: 11 })}`);

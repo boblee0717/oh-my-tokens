@@ -121,6 +121,23 @@ test("all hidden providers remain available to restore from the menu without usa
   assert.ok(actions.every((line) => line.includes('bash="/plugins with spaces/oh-my-tokens.1m.sh"') && line.includes("terminal=false refresh=true")));
 });
 
+test("enabled providers distinguish missing data from a reported zero balance", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "omt-provider-no-data-"));
+  const cache = join(dir, "empty.json");
+  await writeFile(cache, JSON.stringify({ records: [] }));
+  const env = {
+    OMT_QUOTA_CACHE: cache, OMT_USAGE_CACHE: cache,
+    OMT_PLUGIN_SCRIPT: join(here, "oh-my-tokens.1m.sh"),
+  };
+  const missing = await runFormat({ records: [] }, env);
+  assert.match(missing, /^DeepSeek · On · No data \|.*checked=true/m);
+  const zero = await runFormat({ records: [
+    { provider: "deepseek", metricType: "balance", window: "today", balance: 0, currency: "USD" },
+  ] }, env);
+  assert.match(zero, /^DeepSeek · On \|.*checked=true/m);
+  assert.match(zero, /Balance\s+0 USD/);
+});
+
 function pngAlphaAt(png, x, y) {
   const width = png.readUInt32BE(16);
   const idat = [];
