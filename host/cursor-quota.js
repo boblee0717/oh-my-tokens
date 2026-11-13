@@ -79,6 +79,21 @@ export function mapUsageSummary(json) {
       out.push(quotaRecord({ label: "Plan usage", usedPercent: (used / limit) * 100, resetsAt: cycleEnd, planType: plan }));
     }
   }
+  // Confirmed against the authenticated dashboard: on-demand amounts are cents.
+  const onDemand = json.individualUsage?.onDemand;
+  const usedCents = firstNumber(onDemand, ["used"]);
+  const limitCents = firstNumber(onDemand, ["limit"]);
+  if (usedCents != null && usedCents >= 0 && (onDemand.enabled !== false || usedCents > 0)) {
+    const record = quotaRecord({ label: "On-demand", usedPercent: limitCents > 0 ? usedCents / limitCents * 100 : 0, resetsAt: cycleEnd, planType: plan });
+    out.push({
+      ...record,
+      // No positive cap means there is no meaningful percentage to display.
+      usedPercent: limitCents > 0 ? record.usedPercent : null,
+      costUSD: usedCents / 100,
+      limitUSD: limitCents > 0 ? limitCents / 100 : null,
+      currency: "USD",
+    });
+  }
   return out;
 }
 
